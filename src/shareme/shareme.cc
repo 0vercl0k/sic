@@ -3,6 +3,7 @@
 #include <tchar.h>
 #include <cstdio>
 #include <cstdint>
+#include <cstdlib>
 
 const uint32_t OnePage = 0x1000;
 
@@ -28,10 +29,15 @@ class ScopedHandle {
             return Handle != INVALID_HANDLE_VALUE && Handle != nullptr;
         }
 
-        ~ScopedHandle() {
+        void Close() {
             if(IsHandleValid(handle_)) {
-                //CloseHandle(handle_);
+                CloseHandle(handle_);
+                handle_ = INVALID_HANDLE_VALUE;
             }
+        }
+
+        ~ScopedHandle() {
+            Close();
         }
 
         operator HANDLE() const {
@@ -41,6 +47,65 @@ class ScopedHandle {
     private:
         HANDLE handle_;
 };
+
+bool SpawnChild(HANDLE Shm) {
+    const size_t NumberOfChars = 256;
+
+    STARTUPINFO Si;
+    PROCESS_INFORMATION Pi;
+    TCHAR Application[NumberOfChars];
+    TCHAR CommandLine[NumberOfChars];
+
+    RtlZeroMemory(&Si, sizeof(Si));
+    RtlZeroMemory(&Pi, sizeof(Pi));
+    RtlZeroMemory(Application, sizeof(Application));
+    RtlZeroMemory(CommandLine, sizeof(CommandLine));
+
+    Si.cb = sizeof(Si);
+
+    if(GetModuleFileName(
+        GetModuleHandle(nullptr),
+        Application,
+        NumberOfChars - 1
+    ) == 0) {
+        _tprintf(_T("Failed to GetModuleFileName, GLE=%d.\n"), GetLastError());
+        return false;
+    }
+
+    //
+    // [...] An inherited handle refers to the same object in the child process as
+    // it does in the parent process. It also has the same value and access privileges.
+    // https://docs.microsoft.com/en-us/windows/win32/procthread/inheritance
+    //
+
+    if(_stprintf_s(
+        CommandLine,
+        NumberOfChars,
+        _T("%s %p"),
+        Application,
+        Shm
+    ) == -1) {
+        _tprintf(_T("Failed to _stprintf_s.\n"));
+        return false;
+    }
+
+    bool Success = CreateProcess(
+        Application,
+        CommandLine,
+        nullptr,
+        nullptr,
+        true,
+        0,
+        nullptr,
+        nullptr,
+        &Si,
+        &Pi
+    );
+
+    CloseHandle(Pi.hThread);
+    CloseHandle(Pi.hProcess);
+    return Success;
+}
 
 PVOID ShmMapByHandle(HANDLE Shm) {
 
@@ -64,21 +129,29 @@ PVOID ShmMapByHandle(HANDLE Shm) {
     return ViewBaseAddress;
 }
 
-int ShmCreate(const TCHAR *Name) {
+int ShmCreateAndWait() {
 
     //
-    // Create a pagefile-backed mapping of a page. Note that
-    // we don't use a ScopedHandle as we want the handle to be resident
-    // so that clients can connect to it.
+    // Without a `SecAttributes` the handle cannot
+    // be inherited in the child processes, which we need.
     //
 
-    const HANDLE Shm(CreateFileMapping(
+    SECURITY_ATTRIBUTES SecAttributes;
+
+    RtlZeroMemory(&SecAttributes, sizeof(SecAttributes));
+    SecAttributes.bInheritHandle = true;
+
+    //
+    // Create a pagefile-backed mapping of a page.
+    //
+
+    const ScopedHandle Shm(CreateFileMapping(
         INVALID_HANDLE_VALUE,
-        nullptr,
+        &SecAttributes,
         PAGE_READWRITE,
         0,
         OnePage,
-        Name
+        nullptr
     ));
 
     if(Shm == nullptr) {
@@ -86,105 +159,79 @@ int ShmCreate(const TCHAR *Name) {
         return EXIT_FAILURE;
     }
 
-    //
-    // Map a view of the shared memory.
-    //
+    ScopedHandle Event(CreateEvent(
+        &SecAttributes,
+        true,
+        false,
+        nullptr
+    ));
 
-    const PVOID ViewBaseAddress = ShmMapByHandle(Shm);
+    HANDLE *View = (HANDLE*)ShmMapByHandle(Shm);
+    *View = Event;
 
-    if(ViewBaseAddress == nullptr) {
-        _tprintf(_T("Failed to ShmMapSection.\n"));
-        return EXIT_FAILURE;
+    const uint32_t ChildNumber = 5;
+    for(uint32_t Idx = 0; Idx < ChildNumber; Idx++) {
+        if(!SpawnChild(Shm)) {
+            _tprintf(_T("Failed to SpawnChild, GLE=%d.\n"), GetLastError());
+            return EXIT_FAILURE;
+        }
     }
 
-    //
-    // Display the base address of the view and exit. Note that we don't unmap the view
-    // as we want it to be resident in the process so that we can inspect it.
-    //
+    _tprintf(_T("Spawned children, press a key to terminate.\n"));
+    getchar();
 
-    _tprintf(_T("Mapped '%s' at %p\n"), Name, ViewBaseAddress);
+    SetEvent(Event);
     return EXIT_SUCCESS;
 }
 
-int ShmMapByName(const TCHAR *Name) {
-    ScopedHandle Shm(OpenFileMapping(
-        FILE_MAP_WRITE,
-        false,
-        Name
-    ));
-
-    if(Shm == nullptr) {
-        _tprintf(_T("Failed to OpenFileMapping('%s'), GLE=%d.\n"), Name, GetLastError());
-        return EXIT_FAILURE;
-    }
+int ShmMapByNameAndWait(const TCHAR *HandleString) {
+    ScopedHandle Shm(HANDLE(_tcstoull(
+        HandleString,
+        nullptr,
+        16
+    )));
 
     //
     // Display the base address of the view and exit. Note that we don't unmap the view
     // as we want it to be resident in the process so that we can inspect it.
     //
 
-    const PVOID ViewBaseAddress = ShmMapByHandle(Shm);
+    const HANDLE *ViewBaseAddress = (HANDLE*)ShmMapByHandle(Shm);
+    Shm.Close();
 
     if(ViewBaseAddress == nullptr) {
         _tprintf(_T("Failed to ShmMapSection.\n"));
         return EXIT_FAILURE;
     }
 
-    _tprintf(_T("Mapped '%s' at %p\n"), Name, ViewBaseAddress);
+    _tprintf(_T("PID:%d mapped a view at %p\n"), GetCurrentProcessId(), ViewBaseAddress);
+
+    const ScopedHandle Event(*ViewBaseAddress);
+    WaitForSingleObject(Event, INFINITE);
     return EXIT_SUCCESS;
 }
 
 void Usage() {
-    _tprintf(_T("shareme.exe <create|map> <shm name>\n"));
+    _tprintf(_T("shareme.exe\n"));
+    _tprintf(_T("shareme.exe <shm handle>\n"));
 }
 
 int _tmain(int argc, TCHAR *argv[]) {
-    if(argc != 3) {
-        Usage();
-        return EXIT_FAILURE;
-    }
 
     //
     // We only accept two options, so this is pretty straight-forward.
     //
 
-    const bool Create = _tcsicmp(argv[1], _T("create")) == 0;
-    const bool Map = _tcsicmp(argv[1], _T("map")) == 0;
-    const TCHAR *Name = argv[2];
+    const bool Create = argc == 1;
+    if(Create) {
+        return ShmCreateAndWait();
+    }
 
-    //
-    // If the user didn't provide a valid option we also print the usage.
-    //
-
-    if(!Create && !Map) {
+    if(argc != 2) {
         Usage();
         return EXIT_FAILURE;
     }
 
-    //
-    // We can now either create a mapping or map it.
-    //
-
-    int Status = Create ? ShmCreate(Name) : ShmMapByName(Name);
-
-    //
-    // Exit the program is something failed along the way.
-    //
-
-    if(Status == EXIT_FAILURE) {
-        return Status;
-    }
-
-    //
-    // If everything went well, we wait for a user input.
-    //
-
-    _tprintf(_T("Press a key to exit the program.\n"));
-    getchar();
-
-    //
-    // Our job is done!.
-    //
-
-    return Status;
+    const TCHAR *HandleString = argv[1];
+    return ShmMapByNameAndWait(HandleString);
 }
