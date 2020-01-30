@@ -219,6 +219,8 @@ NTSTATUS SicDude(
 ) {
     NTSTATUS Status = STATUS_SUCCESS;
     PSYSTEM_PROCESS_INFORMATION ProcessList = NULL;
+    PSYSTEM_PROCESS_INFORMATION CurrentProcess = NULL;
+
 
     //
     // Get a list of processes.
@@ -228,6 +230,25 @@ NTSTATUS SicDude(
 
     if(!NT_SUCCESS(Status)) {
         goto clean;
+    }
+
+    //
+    // We need to walk each of them and walk through their VAD trees.
+    //
+
+    CurrentProcess = ProcessList;
+    while(CurrentProcess->NextEntryOffset != 0) {
+
+        const UNICODE_STRING *ProcessName = &CurrentProcess->ImageName;
+        DbgPrint("Process: %wZ\n", ProcessName);
+
+        //
+        // We are done with the current process, move to the next.
+        //
+
+        CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)(
+            (ULONG_PTR)CurrentProcess + CurrentProcess->NextEntryOffset
+        );
     }
 
     clean:
@@ -277,15 +298,18 @@ NTSTATUS DriverEntry(
     _In_ PUNICODE_STRING RegistryPath
 ) {
     UNREFERENCED_PARAMETER(RegistryPath);
-    NTSTATUS Status = STATUS_FAILED_DRIVER_ENTRY;
 
     PAGED_CODE();
+
+    DriverObject->DriverUnload = SicDriverUnload;
+
+    SicDude();
 
     //
     // Set-up the Unload / I/O callbacks.
     //
 
-    DriverObject->DriverUnload = SicDriverUnload;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = SicDispatchDeviceControl;
-    return Status;
+    // DriverObject->DriverUnload = SicDriverUnload;
+    // DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = SicDispatchDeviceControl;
+    return STATUS_FAILED_DRIVER_ENTRY;
 }
