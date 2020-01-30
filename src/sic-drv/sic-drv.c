@@ -1,5 +1,5 @@
 // Axel '0vercl0k' Souchet - January 25 2020
-#include <ntddk.h>
+#include <ntifs.h>
 
 //
 // Declare a bunch of functions to satisfy the below pragmas.
@@ -197,6 +197,10 @@ NTSTATUS SicGetProcessList(
             &ReturnLength
         );
 
+        //
+        // If we fail, let's clean up behind ourselves, and give it another try!
+        //
+
         if(!NT_SUCCESS(Status)) {
             ExFreePoolWithTag(
                 LocalProcessList,
@@ -247,9 +251,36 @@ NTSTATUS SicDude(
 
     CurrentProcess = ProcessList;
     while(CurrentProcess->NextEntryOffset != 0) {
+        PEPROCESS Process = NULL;
+
+        //
+        // Display the process name.
+        //
 
         const UNICODE_STRING *ProcessName = &CurrentProcess->ImageName;
         DbgPrint("Process: %wZ\n", ProcessName);
+
+        //
+        // Reference the process to not have it die under us.
+        //
+
+        Status = PsLookupProcessByProcessId(
+            CurrentProcess->UniqueProcessId,
+            &Process
+        );
+
+        if(!NT_SUCCESS(Status)) {
+            goto next;
+        }
+
+
+        //
+        // Don't forget to de-reference the EPROCESS object.
+        //
+
+        ObDereferenceObject(Process);
+
+        next:
 
         //
         // We are done with the current process, move to the next.
