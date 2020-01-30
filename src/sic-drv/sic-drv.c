@@ -207,8 +207,17 @@ NTSTATUS SicGetProcessList(
             continue;
         }
 
+        //
+        // If we make it here, it means that we have our list and we are done.
+        //
+
         *ProcessList = LocalProcessList;
+        break;
     }
+
+    //
+    // If we managed to get the list, it's all good otherwise it's a failure.
+    //
 
     return (*ProcessList != NULL) ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
 }
