@@ -481,7 +481,7 @@ NTSTATUS SicDude() {
         // Display the process name.
         //
 
-        const UNICODE_STRING *ProcessName = &CurrentProcess->ImageName;
+        const PUNICODE_STRING ProcessName = &CurrentProcess->ImageName;
         DebugPrint("Process: %wZ\n", ProcessName);
 
         //
