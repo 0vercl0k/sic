@@ -232,6 +232,11 @@ NTSTATUS SicGetProcessList(
     const UINT32 MaxAttempts = 10;
     NTSTATUS Status = STATUS_SUCCESS;
 
+    //
+    // If we didn't receive a ProcessList, we fail the call as we
+    // expect one.
+    //
+
     if(!ARGUMENT_PRESENT(ProcessList)) {
         return STATUS_INVALID_PARAMETER;
     }
