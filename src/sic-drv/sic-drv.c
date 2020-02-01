@@ -401,11 +401,13 @@ NTSTATUS SicWalkVadTree(const PMMVAD Root) {
         DebugPrint("    VAD: %p\n", DisplayVadNode->Vad);
         DebugPrint("      ProtoPTE: %p\n", DisplayVadNode->Vad->FirstPrototypePte);
 
-        const ULONG_PTR StartVirtualAddress = DisplayVadNode->Vad->Core.StartingVpn | (
+        const ULONG_PTR StartingVpn = DisplayVadNode->Vad->Core.StartingVpn | (
             (ULONG_PTR)DisplayVadNode->Vad->Core.StartingVpnHigh << 32
         );
 
-        DebugPrint("      StartVirtualAddress: %p\n", StartVirtualAddress);
+        const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
+
+        DebugPrint("      StartVirtualAddress: %zx\n", StartingVirtualAddress);
 
         //
         // Now let's explore its right tree as we have explored the left one already.
