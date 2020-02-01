@@ -132,64 +132,64 @@ ZwQuerySystemInformation(
 
 typedef struct _MMVAD_SHORT
 {
-  union
-  {
-    /* 0x0000 */ struct _RTL_BALANCED_NODE VadNode;
-    /* 0x0000 */ struct _MMVAD_SHORT* NextVad;
-  } u; /* size: 0x0018 */
-  /* 0x0018 */ unsigned long StartingVpn;
-  /* 0x001c */ unsigned long EndingVpn;
-  /* 0x0020 */ unsigned char StartingVpnHigh;
-  /* 0x0021 */ unsigned char EndingVpnHigh;
-  /* 0x0022 */ unsigned char CommitChargeHigh;
-  /* 0x0023 */ unsigned char SpareNT64VadUChar;
-  /* 0x0024 */ long ReferenceCount;
-  /* 0x0028 */ /*struct _EX_PUSH_LOCK*/ PVOID PushLock;
-  union
-  {
     union
     {
-      /* 0x0030 */ unsigned long LongFlags;
-      // /* 0x0030 */ struct _MMVAD_FLAGS VadFlags;
-    } u; /* size: 0x0004 */
-  } /* size: 0x0004 */ u2;
-  union
-  {
+        /* 0x0000 */ struct _RTL_BALANCED_NODE VadNode;
+        /* 0x0000 */ struct _MMVAD_SHORT* NextVad;
+    } u; /* size: 0x0018 */
+    /* 0x0018 */ unsigned long StartingVpn;
+    /* 0x001c */ unsigned long EndingVpn;
+    /* 0x0020 */ unsigned char StartingVpnHigh;
+    /* 0x0021 */ unsigned char EndingVpnHigh;
+    /* 0x0022 */ unsigned char CommitChargeHigh;
+    /* 0x0023 */ unsigned char SpareNT64VadUChar;
+    /* 0x0024 */ long ReferenceCount;
+    /* 0x0028 */ /*struct _EX_PUSH_LOCK*/ PVOID PushLock;
     union
     {
-      /* 0x0034 */ unsigned long LongFlags1;
-      // /* 0x0034 */ struct _MMVAD_FLAGS1 VadFlags1;
-    } u; /* size: 0x0004 */
-  } /* size: 0x0004 */ u1;
-  /* 0x0038 */ struct _MI_VAD_EVENT_BLOCK* EventList;
-} MMVAD_SHORT, *PMMVAD_SHORT; /* size: 0x0040 */
+        union
+        {
+            /* 0x0030 */ unsigned long LongFlags;
+            // /* 0x0030 */ struct _MMVAD_FLAGS VadFlags;
+        } u; /* size: 0x0004 */
+    } /* size: 0x0004 */ u2;
+    union
+    {
+        union
+        {
+            /* 0x0034 */ unsigned long LongFlags1;
+            // /* 0x0034 */ struct _MMVAD_FLAGS1 VadFlags1;
+        } u; /* size: 0x0004 */
+    } /* size: 0x0004 */ u1;
+    /* 0x0038 */ struct _MI_VAD_EVENT_BLOCK* EventList;
+} MMVAD_SHORT, * PMMVAD_SHORT; /* size: 0x0040 */
 
 typedef struct _MMVAD
 {
-  /* 0x0000 */ struct _MMVAD_SHORT Core;
-  union
-  {
+    /* 0x0000 */ struct _MMVAD_SHORT Core;
     union
     {
-      /* 0x0040 */ unsigned long LongFlags2;
-      // /* 0x0040 */ struct _MMVAD_FLAGS2 VadFlags2;
-    } u; /* size: 0x0004 */
-  } /* size: 0x0004 */ u2;
-  /* 0x0048 */ struct _SUBSECTION* Subsection;
-  /* 0x0050 */ struct _MMPTE* FirstPrototypePte;
-  /* 0x0058 */ struct _MMPTE* LastContiguousPte;
-  /* 0x0060 */ struct _LIST_ENTRY ViewLinks;
-  /* 0x0070 */ struct _EPROCESS* VadsProcess;
-  union
-  {
+        union
+        {
+            /* 0x0040 */ unsigned long LongFlags2;
+            // /* 0x0040 */ struct _MMVAD_FLAGS2 VadFlags2;
+        } u; /* size: 0x0004 */
+    } /* size: 0x0004 */ u2;
+    /* 0x0048 */ struct _SUBSECTION* Subsection;
+    /* 0x0050 */ struct _MMPTE* FirstPrototypePte;
+    /* 0x0058 */ struct _MMPTE* LastContiguousPte;
+    /* 0x0060 */ struct _LIST_ENTRY ViewLinks;
+    /* 0x0070 */ struct _EPROCESS* VadsProcess;
     union
     {
-      // /* 0x0078 */ struct _MI_VAD_SEQUENTIAL_INFO SequentialVa;
-      /* 0x0078 */ struct _MMEXTEND_INFO* ExtendedInfo;
-    } u; /* size: 0x0008 */
-  } /* size: 0x0008 */ u4;
-  /* 0x0080 */ struct _FILE_OBJECT* FileObject;
-} MMVAD, *PMMVAD; /* size: 0x0088 */
+        union
+        {
+            // /* 0x0078 */ struct _MI_VAD_SEQUENTIAL_INFO SequentialVa;
+            /* 0x0078 */ struct _MMEXTEND_INFO* ExtendedInfo;
+        } u; /* size: 0x0008 */
+    } /* size: 0x0008 */ u4;
+    /* 0x0080 */ struct _FILE_OBJECT* FileObject;
+} MMVAD, * PMMVAD; /* size: 0x0088 */
 
 //
 // Some Sic constants.
