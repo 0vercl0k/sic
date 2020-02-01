@@ -399,6 +399,13 @@ NTSTATUS SicWalkVadTree(const PMMVAD Root) {
         }
 
         DebugPrint("    VAD: %p\n", DisplayVadNode->Vad);
+        DebugPrint("      ProtoPTE: %p\n", DisplayVadNode->Vad->FirstPrototypePte);
+
+        const ULONG_PTR StartVirtualAddress = DisplayVadNode->Vad->Core.StartingVpn | (
+            (ULONG_PTR)DisplayVadNode->Vad->Core.StartingVpnHigh << 32
+        );
+
+        DebugPrint("      StartVirtualAddress: %p\n", StartVirtualAddress);
 
         //
         // Now let's explore its right tree as we have explored the left one already.
