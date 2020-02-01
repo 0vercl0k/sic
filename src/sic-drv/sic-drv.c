@@ -2,6 +2,19 @@
 #include <ntifs.h>
 
 //
+// Bunch of useful resources I found useful you also might enjoy:
+//   - ProcessHacker's pht project,
+//   - Rekall's source-code,
+//   - Windows Internals 7th edition
+//
+// Register the driver:
+//   - sc create sic type=kernel binPath=c:\users\over\desktop\sic-drv.sys
+//
+// Enable DbgPrint:
+//    - kd> ed nt!Kd_Default_Mask 8
+//
+
+//
 // Declare a bunch of functions to satisfy the below pragmas.
 //
 
