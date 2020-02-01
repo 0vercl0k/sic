@@ -105,7 +105,6 @@ typedef struct _SYSTEM_PROCESS_INFORMATION {
     // SYSTEM_EXTENDED_THREAD_INFORMATION + SYSTEM_PROCESS_INFORMATION_EXTENSION // SystemFullProcessInformation
 } SYSTEM_PROCESS_INFORMATION, *PSYSTEM_PROCESS_INFORMATION;
 
-
 extern
 NTSYSCALLAPI
 NTSTATUS
@@ -280,6 +279,8 @@ NTSTATUS SicDude(
 
         ObDereferenceObject(Process);
 
+        Process = NULL;
+
         next:
 
         //
@@ -292,6 +293,20 @@ NTSTATUS SicDude(
     }
 
     clean:
+
+    //
+    // Don't forget to clean the process list.
+    //
+
+    if(ProcessList != NULL) {
+        ExFreePoolWithTag(
+            ProcessList,
+            SIC_MEMORY_TAG
+        );
+
+        ProcessList = NULL;
+    }
+
     return Status;
 }
 
