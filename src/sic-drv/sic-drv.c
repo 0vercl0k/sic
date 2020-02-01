@@ -10,9 +10,6 @@
 // Register the driver:
 //   - sc create sic type=kernel binPath=c:\users\over\desktop\sic-drv.sys
 //
-// Enable DbgPrint:
-//    - kd> ed nt!Kd_Default_Mask 8
-//
 
 //
 // Declare a bunch of functions to satisfy the below pragmas.
@@ -131,6 +128,7 @@ ZwQuerySystemInformation(
 
 //
 // Thanks to ntdiff.github.io / pdbex.
+//
 
 typedef struct _MMVAD_SHORT
 {
@@ -198,6 +196,19 @@ typedef struct _MMVAD
 //
 
 #define SIC_MEMORY_TAG ' ciS'
+
+#ifdef DBG
+#define DebugPrint(_fmt_, ...) {  \
+    DbgPrintEx(                   \
+        DPFLTR_IHVDRIVER_ID,      \
+        0xffffffff,               \
+        (_fmt_),                  \
+        __VA_ARGS__               \
+    );                            \
+}
+#else
+#define DebugPrint(...) /* Nuthin. */
+#endif
 
 //
 // Time to do some work I suppose.
@@ -382,7 +393,7 @@ NTSTATUS SicWalkVadTree(const PMMVAD Root) {
             break;
         }
 
-        DbgPrint("    VAD: %p\n", DisplayVadNode->Vad);
+        DebugPrint("    VAD: %p\n", DisplayVadNode->Vad);
 
         //
         // Now let's explore its right tree as we have explored the left one already.
@@ -459,7 +470,7 @@ NTSTATUS SicDude() {
         //
 
         const UNICODE_STRING *ProcessName = &CurrentProcess->ImageName;
-        DbgPrint("Process: %wZ\n", ProcessName);
+        DebugPrint("Process: %wZ\n", ProcessName);
 
         //
         // Reference the process to not have it die under us.
@@ -474,7 +485,7 @@ NTSTATUS SicDude() {
             goto next;
         }
 
-        DbgPrint("  EPROCESS: %p\n", Process);
+        DebugPrint("  EPROCESS: %p\n", Process);
 
         //
         // TODO: Check if EPROCESS.AddressCreationLock can be used to lock the
@@ -490,7 +501,7 @@ NTSTATUS SicDude() {
         //    + 0x658 VadRoot : _RTL_AVL_TREE
         const UINT32 EprocessToVadRoot = 0x658;
         const PMMVAD VadRoot = *(PMMVAD*)((ULONG_PTR)Process + EprocessToVadRoot);
-        DbgPrint("  VadRoot: %p\n", VadRoot);
+        DebugPrint("  VadRoot: %p\n", VadRoot);
 
         SicWalkVadTree(
             VadRoot
