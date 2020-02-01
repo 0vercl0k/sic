@@ -210,6 +210,15 @@ typedef struct _MMVAD
 #define DebugPrint(...) /* Nuthin. */
 #endif
 
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+typedef
+VOID
+(*SIC_WALK_VAD_ROUTINE)(
+    _In_ const PMMVAD Vad,
+    _Inout_opt_ PVOID Context
+);
+
 //
 // Time to do some work I suppose.
 //
@@ -324,7 +333,44 @@ NTSTATUS SicGetProcessList(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicWalkVadTree(const PMMVAD Root) {
+VOID SicDumpVad(
+    _In_ const PMMVAD Vad,
+    _Inout_ PVOID Context
+) {
+    UNREFERENCED_PARAMETER(Context);
+
+    PAGED_CODE();
+
+    DebugPrint("    VAD: %p\n", Vad);
+
+    if(Vad->FirstPrototypePte == NULL) {
+        return;
+    }
+
+    DebugPrint("      ProtoPTE: %p\n", Vad->FirstPrototypePte);
+
+    const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | (
+        (ULONG_PTR)Vad->Core.StartingVpnHigh << 32
+    );
+
+    const ULONG_PTR EndingVpn = Vad->Core.EndingVpn | (
+        (ULONG_PTR)Vad->Core.EndingVpnHigh << 32
+    );
+
+    const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
+    const ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
+
+    DebugPrint("      StartingVirtualAddress: %zx\n", StartingVirtualAddress);
+    DebugPrint("      EndingVirtualAddress: %zx\n", EndingVirtualAddress);
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS SicWalkVadTreeInOrder(
+    _In_ const PMMVAD Root,
+    _In_ SIC_WALK_VAD_ROUTINE Routine,
+    _Inout_opt_ PVOID Context
+) {
     typedef struct _NODE {
         LIST_ENTRY List;
         PMMVAD Vad;
@@ -398,16 +444,10 @@ NTSTATUS SicWalkVadTree(const PMMVAD Root) {
             break;
         }
 
-        DebugPrint("    VAD: %p\n", DisplayVadNode->Vad);
-        DebugPrint("      ProtoPTE: %p\n", DisplayVadNode->Vad->FirstPrototypePte);
-
-        const ULONG_PTR StartingVpn = DisplayVadNode->Vad->Core.StartingVpn | (
-            (ULONG_PTR)DisplayVadNode->Vad->Core.StartingVpnHigh << 32
+        Routine(
+            DisplayVadNode->Vad,
+            Context
         );
-
-        const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
-
-        DebugPrint("      StartVirtualAddress: %zx\n", StartingVirtualAddress);
 
         //
         // Now let's explore its right tree as we have explored the left one already.
@@ -517,8 +557,10 @@ NTSTATUS SicDude() {
         const PMMVAD VadRoot = *(PMMVAD*)((ULONG_PTR)Process + EprocessToVadRoot);
         DebugPrint("  VadRoot: %p\n", VadRoot);
 
-        SicWalkVadTree(
-            VadRoot
+        SicWalkVadTreeInOrder(
+            VadRoot,
+            SicDumpVad,
+            NULL
         );
 
         //
