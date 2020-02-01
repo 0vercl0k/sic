@@ -331,7 +331,7 @@ NTSTATUS SicWalkVadTree(const PMMVAD Root) {
     } VAD_NODE, *PVAD_NODE;
 
     NTSTATUS Status = STATUS_SUCCESS;
-    PMMVAD CurrentVad;
+    PMMVAD CurrentVad = NULL;
     LIST_ENTRY VadNodeStackHead;
 
     PAGED_CODE();
