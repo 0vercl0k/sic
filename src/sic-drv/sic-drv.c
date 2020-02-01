@@ -567,8 +567,8 @@ NTSTATUS SicDispatchDeviceControl(
 ) {
     UNREFERENCED_PARAMETER(DeviceObject);
     NTSTATUS Status = STATUS_SUCCESS;
-    PIO_STACK_LOCATION IoStackLocation = IoGetCurrentIrpStackLocation(Irp);
-    ULONG IoControlCode = IoStackLocation->Parameters.DeviceIoControl.IoControlCode;
+    const PIO_STACK_LOCATION IoStackLocation = IoGetCurrentIrpStackLocation(Irp);
+    const ULONG IoControlCode = IoStackLocation->Parameters.DeviceIoControl.IoControlCode;
 
     PAGED_CODE();
 
