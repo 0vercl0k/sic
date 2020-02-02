@@ -213,7 +213,7 @@ typedef struct _MMVAD
 #endif
 
 typedef struct _SICK_LOOKUP_NODE_OWNERS {
-    SLIST_ENTRY List;
+    SLIST_ENTRY SList;
     PEPROCESS Process;
     ULONG_PTR StartingVirtualAddress;
     ULONG_PTR EndingVirtualAddress;
@@ -421,7 +421,7 @@ NTSTATUS SicDumpVad(
 
     ExInterlockedPushEntrySList(
         &InsertedNode->Owners,
-        &Owner->List,
+        &Owner->SList,
         NULL
     );
 
