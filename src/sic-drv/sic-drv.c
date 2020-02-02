@@ -825,8 +825,20 @@ NTSTATUS SicDude() {
     }
 
     //
-    // TODO: Clear the Table??
+    // Clear the table.
     //
+
+    while(!RtlIsGenericTableEmptyAvl(&LookupTable)) {
+        PVOID Entry = RtlGetElementGenericTableAvl(
+            &LookupTable,
+            0
+        );
+
+        RtlDeleteElementGenericTableAvl(
+            &LookupTable,
+            Entry
+        );
+    }
 
     //
     // Don't forget to clean the process list.
