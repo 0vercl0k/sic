@@ -607,6 +607,10 @@ PVOID SicAllocateRoutine(
         SIC_MEMORY_TAG_AVL_ENTRY
     );
 
+    if(Node == NULL) {
+        return NULL;
+    }
+
     //
     // Initialize the SLIST of Owners.
     //
