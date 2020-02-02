@@ -192,10 +192,12 @@ typedef struct _MMVAD
 } MMVAD, * PMMVAD; /* size: 0x0088 */
 
 //
-// Some Sic constants.
+// Some Sic constants / structures.
 //
 
 #define SIC_MEMORY_TAG ' ciS'
+#define SIC_MEMORY_TAG_AVL_ENTRY 'AciS'
+#define SIC_MEMORY_TAG_SLIST_ENTRY 'SciS'
 
 #ifdef DBG
 #define DebugPrint(_fmt_, ...) {  \
@@ -210,14 +212,33 @@ typedef struct _MMVAD
 #define DebugPrint(...) /* Nuthin. */
 #endif
 
+typedef struct _SICK_LOOKUP_NODE_OWNERS {
+    SLIST_ENTRY List;
+    PEPROCESS Process;
+    ULONG_PTR StartingVirtualAddress;
+    ULONG_PTR EndingVirtualAddress;
+} SICK_LOOKUP_NODE_OWNER, *PSICK_LOOKUP_NODE_OWNER;
+
+typedef struct _SIC_LOOKUP_VAD_NODE
+{
+    struct _MMPTE *FirstPrototypePte;
+    SLIST_HEADER Owners;
+} SIC_LOOKUP_VAD_NODE, *PSIC_LOOKUP_VAD_NODE;
+
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 typedef
-VOID
+NTSTATUS
 (*SIC_WALK_VAD_ROUTINE)(
     _In_ const PMMVAD Vad,
     _Inout_opt_ PVOID Context
 );
+
+typedef struct _SIC_WALK_VAD_CTX
+{
+    PRTL_AVL_TABLE LookupTable;
+    PEPROCESS Process;
+} SIC_WALK_VAD_CTX, *PSIC_WALK_VAD_CTX;
 
 //
 // Time to do some work I suppose.
@@ -333,21 +354,20 @@ NTSTATUS SicGetProcessList(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-VOID SicDumpVad(
+NTSTATUS SicDumpVad(
     _In_ const PMMVAD Vad,
     _Inout_ PVOID Context
 ) {
-    UNREFERENCED_PARAMETER(Context);
+    const PSIC_WALK_VAD_CTX WalkVadContext = Context;
+    SIC_LOOKUP_VAD_NODE VadNode;
 
     PAGED_CODE();
 
     DebugPrint("    VAD: %p\n", Vad);
 
     if(Vad->FirstPrototypePte == NULL) {
-        return;
+        return STATUS_SUCCESS;
     }
-
-    DebugPrint("      ProtoPTE: %p\n", Vad->FirstPrototypePte);
 
     const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | (
         (ULONG_PTR)Vad->Core.StartingVpnHigh << 32
@@ -362,6 +382,63 @@ VOID SicDumpVad(
 
     DebugPrint("      StartingVirtualAddress: %zx\n", StartingVirtualAddress);
     DebugPrint("      EndingVirtualAddress: %zx\n", EndingVirtualAddress);
+    DebugPrint("      ProtoPTE: %p\n", Vad->FirstPrototypePte);
+
+    //
+    // Populate the node before adding it to the lookup table.
+    //
+
+    RtlZeroMemory(&VadNode, sizeof(VadNode));
+    VadNode.FirstPrototypePte = Vad->FirstPrototypePte;
+
+    BOOLEAN NewElement = FALSE;
+    PSIC_LOOKUP_VAD_NODE InsertedNode = RtlInsertElementGenericTableAvl(
+        WalkVadContext->LookupTable,
+        &VadNode,
+        sizeof(VadNode),
+        &NewElement
+    );
+
+    if(NewElement) {
+
+        //
+        // If this is a new element we need to initialize the list. Keep in mind
+        // that the RtlInsertElementGenericTableAvl function allocates memory for us
+        // so we initialize it once we have a pointer to it.
+        //
+
+        InitializeSListHead(&InsertedNode->Owners);
+
+    } else {
+
+        //
+        // If this is an existing node, we simply add the process to the list of
+        // owners of this PrototypePTE.
+        // To do that we allocate memory for an entry and push it down the SLIST.
+        //
+
+        PSICK_LOOKUP_NODE_OWNER Owner = ExAllocatePoolWithTag(
+            PagedPool,
+            sizeof(SICK_LOOKUP_NODE_OWNER),
+            SIC_MEMORY_TAG_SLIST_ENTRY
+        );
+
+        if(Owner == NULL) {
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        Owner->Process = WalkVadContext->Process;
+        Owner->StartingVirtualAddress = StartingVirtualAddress;
+        Owner->EndingVirtualAddress = EndingVirtualAddress;
+
+        ExInterlockedPushEntrySList(
+            &InsertedNode->Owners,
+            &Owner->List,
+            NULL
+        );
+    }
+
+    return STATUS_SUCCESS;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -444,7 +521,12 @@ NTSTATUS SicWalkVadTreeInOrder(
             break;
         }
 
-        Routine(
+        //
+        // Invoke the user-provided callback for them to do whatever they want with the
+        // node.
+        //
+
+        Status = Routine(
             DisplayVadNode->Vad,
             Context
         );
@@ -461,6 +543,14 @@ NTSTATUS SicWalkVadTreeInOrder(
         );
 
         DisplayVadNode = NULL;
+
+        //
+        // If the callback fails, we abort the whole thing.
+        //
+
+        if(!NT_SUCCESS(Status)) {
+            goto clean;
+        }
     }
 
     clean:
@@ -494,12 +584,75 @@ NTSTATUS SicWalkVadTreeInOrder(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
+RTL_GENERIC_COMPARE_RESULTS SicCompareRoutine(
+    _In_ PRTL_AVL_TABLE Table,
+    _In_ PVOID FirstStruct,
+    _In_ PVOID SecondStruct
+) {
+    UNREFERENCED_PARAMETER(Table);
+    const PSIC_LOOKUP_VAD_NODE First = FirstStruct;
+    const PSIC_LOOKUP_VAD_NODE Second = SecondStruct;
+    const BOOLEAN Equal = First->FirstPrototypePte == Second->FirstPrototypePte;
+
+    if(Equal) {
+        return GenericEqual;
+    }
+
+    const BOOLEAN LessThan = First->FirstPrototypePte < Second->FirstPrototypePte;
+    return LessThan ? GenericLessThan : GenericGreaterThan;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+PVOID SicAllocateRoutine(
+    _In_ PRTL_AVL_TABLE Table,
+    _In_ ULONG ByteSize
+) {
+    UNREFERENCED_PARAMETER(Table);
+    return ExAllocatePoolWithTag(
+        PagedPool,
+        ByteSize,
+        SIC_MEMORY_TAG_AVL_ENTRY
+    );
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+VOID SicFreeRoutine(
+    _In_ PRTL_AVL_TABLE Table,
+    _In_ PVOID Buffer
+) {
+    UNREFERENCED_PARAMETER(Table);
+    ExFreePoolWithTag(
+        Buffer,
+        SIC_MEMORY_TAG_AVL_ENTRY
+    );
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
 NTSTATUS SicDude() {
     NTSTATUS Status = STATUS_SUCCESS;
     PSYSTEM_PROCESS_INFORMATION ProcessList = NULL;
     PSYSTEM_PROCESS_INFORMATION CurrentProcess = NULL;
+    RTL_AVL_TABLE LookupTable;
+    SIC_WALK_VAD_CTX WalkVadContext;
 
     PAGED_CODE();
+
+    //
+    // Initialize the look-up table.
+    //
+
+    RtlInitializeGenericTableAvl(
+        &LookupTable,
+        SicCompareRoutine,
+        SicAllocateRoutine,
+        SicFreeRoutine,
+        NULL
+    );
+
+    WalkVadContext.LookupTable = &LookupTable;
 
     //
     // Get a list of processes.
@@ -548,6 +701,12 @@ NTSTATUS SicDude() {
         //
 
         //
+        // Prepare the context structure that walking callback will receive.
+        //
+
+        WalkVadContext.Process = Process;
+
+        //
         // Grab the VadRoot and walk the tree.
         //
 
@@ -557,10 +716,10 @@ NTSTATUS SicDude() {
         const PMMVAD VadRoot = *(PMMVAD*)((ULONG_PTR)Process + EprocessToVadRoot);
         DebugPrint("  VadRoot: %p\n", VadRoot);
 
-        SicWalkVadTreeInOrder(
+        Status = SicWalkVadTreeInOrder(
             VadRoot,
             SicDumpVad,
-            NULL
+            &WalkVadContext
         );
 
         //
@@ -583,6 +742,91 @@ NTSTATUS SicDude() {
     }
 
     clean:
+
+    //
+    // Once we walked all the processes, let's walk the lookup table
+    // to find the entries that have more than one owners.
+    // We also use this opportunity to release all the allocated memory.
+    //
+
+    for(PSIC_LOOKUP_VAD_NODE Node = RtlEnumerateGenericTableAvl(&LookupTable, TRUE);
+        Node != NULL;
+        Node = RtlEnumerateGenericTableAvl(&LookupTable, FALSE)
+    ) {
+
+        //
+        // We display information to the user only if the PrototypePTE
+        // has more than an owner. And if we didn't fail anywhere else.
+        //
+
+        const USHORT NumberOwners = ExQueryDepthSList(&Node->Owners);
+
+        if(NumberOwners > 1 && NT_SUCCESS(Status)) {
+            DebugPrint(
+                "PrototypePTE: %p shared with:\n",
+                Node->FirstPrototypePte
+            );
+        }
+
+        //
+        // Now let's walk the owners one by one and clean them up at the
+        // same time.
+        //
+
+        while(TRUE) {
+
+            //
+            // Pop, pop, pop.
+            //
+
+            PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(
+                &Node->Owners,
+                NULL
+            );
+
+            //
+            // All right, the SLIST is empty let's break out of the loop.
+            //
+
+            if(Owner == NULL) {
+                break;
+            }
+
+            //
+            // Again, we are wary to only display stuff to the screen if we have more than an
+            // owner as well as a success status. If we don't have a success status we are just
+            // here to clean stuff up; nothing else.
+            //
+
+            if(NumberOwners > 1 && NT_SUCCESS(Status)) {
+                DebugPrint(
+                    "  EPROCESS %p at %zx-%zx\n",
+                    Owner->Process,
+                    Owner->StartingVirtualAddress,
+                    Owner->EndingVirtualAddress
+                );
+            }
+
+            //
+            // Clean-up the memory that we allocated for the SLIST entry.
+            //
+
+            ExFreePoolWithTag(
+                Owner,
+                SIC_MEMORY_TAG_SLIST_ENTRY
+            );
+        }
+
+        //
+        // Empty the list. Technically we don't really care but oh well.
+        //
+
+        ExInterlockedFlushSList(&Node->Owners);
+    }
+
+    //
+    // TODO: Clear the Table??
+    //
 
     //
     // Don't forget to clean the process list.
