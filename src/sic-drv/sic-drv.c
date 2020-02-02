@@ -399,44 +399,31 @@ NTSTATUS SicDumpVad(
         &NewElement
     );
 
-    if(NewElement) {
+    //
+    // If this is an existing node, we simply add the process to the list of
+    // owners of this PrototypePTE.
+    // To do that we allocate memory for an entry and push it down the SLIST.
+    //
 
-        //
-        // If this is a new element we need to initialize the list. Keep in mind
-        // that the RtlInsertElementGenericTableAvl function allocates memory for us
-        // so we initialize it once we have a pointer to it.
-        //
+    PSICK_LOOKUP_NODE_OWNER Owner = ExAllocatePoolWithTag(
+        PagedPool,
+        sizeof(SICK_LOOKUP_NODE_OWNER),
+        SIC_MEMORY_TAG_SLIST_ENTRY
+    );
 
-        InitializeSListHead(&InsertedNode->Owners);
-
-    } else {
-
-        //
-        // If this is an existing node, we simply add the process to the list of
-        // owners of this PrototypePTE.
-        // To do that we allocate memory for an entry and push it down the SLIST.
-        //
-
-        PSICK_LOOKUP_NODE_OWNER Owner = ExAllocatePoolWithTag(
-            PagedPool,
-            sizeof(SICK_LOOKUP_NODE_OWNER),
-            SIC_MEMORY_TAG_SLIST_ENTRY
-        );
-
-        if(Owner == NULL) {
-            return STATUS_INSUFFICIENT_RESOURCES;
-        }
-
-        Owner->Process = WalkVadContext->Process;
-        Owner->StartingVirtualAddress = StartingVirtualAddress;
-        Owner->EndingVirtualAddress = EndingVirtualAddress;
-
-        ExInterlockedPushEntrySList(
-            &InsertedNode->Owners,
-            &Owner->List,
-            NULL
-        );
+    if(Owner == NULL) {
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
+
+    Owner->Process = WalkVadContext->Process;
+    Owner->StartingVirtualAddress = StartingVirtualAddress;
+    Owner->EndingVirtualAddress = EndingVirtualAddress;
+
+    ExInterlockedPushEntrySList(
+        &InsertedNode->Owners,
+        &Owner->List,
+        NULL
+    );
 
     return STATUS_SUCCESS;
 }
@@ -609,11 +596,23 @@ PVOID SicAllocateRoutine(
     _In_ ULONG ByteSize
 ) {
     UNREFERENCED_PARAMETER(Table);
-    return ExAllocatePoolWithTag(
+
+    //
+    // Allocate memory for the node.
+    //
+
+    PSIC_LOOKUP_VAD_NODE Node =  ExAllocatePoolWithTag(
         PagedPool,
         ByteSize,
         SIC_MEMORY_TAG_AVL_ENTRY
     );
+
+    //
+    // Initialize the SLIST of Owners.
+    //
+
+    InitializeSListHead(&Node->Owners);
+    return Node;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -623,10 +622,53 @@ VOID SicFreeRoutine(
     _In_ PVOID Buffer
 ) {
     UNREFERENCED_PARAMETER(Table);
+    PSIC_LOOKUP_VAD_NODE Node = Buffer;
+
+    //
+    // Let's clear the Owners SLIST.
+    //
+
+    while(TRUE) {
+
+        //
+        // Pop, pop, pop.
+        //
+
+        PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(
+            &Node->Owners,
+            NULL
+        );
+
+        //
+        // All right, the SLIST is empty let's break out of the loop.
+        //
+
+        if(Owner == NULL) {
+            break;
+        }
+
+        //
+        // Clean-up the memory that we allocated for the SLIST entry.
+        //
+
+        ExFreePoolWithTag(
+            Owner,
+            SIC_MEMORY_TAG_SLIST_ENTRY
+        );
+
+        Owner = NULL;
+    }
+
+    //
+    // Free the actual node.
+    //
+
     ExFreePoolWithTag(
-        Buffer,
+        Node,
         SIC_MEMORY_TAG_AVL_ENTRY
     );
+
+    Node = NULL;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -741,36 +783,32 @@ NTSTATUS SicDude() {
         );
     }
 
-    clean:
-
     //
     // Once we walked all the processes, let's walk the lookup table
     // to find the entries that have more than one owners.
-    // We also use this opportunity to release all the allocated memory.
     //
 
     for(PSIC_LOOKUP_VAD_NODE Node = RtlEnumerateGenericTableAvl(&LookupTable, TRUE);
         Node != NULL;
         Node = RtlEnumerateGenericTableAvl(&LookupTable, FALSE)
-    ) {
+        ) {
 
         //
-        // We display information to the user only if the PrototypePTE
-        // has more than an owner. And if we didn't fail anywhere else.
+        // We are interested only in PrototypePTE with more than an owner.
         //
 
         const USHORT NumberOwners = ExQueryDepthSList(&Node->Owners);
-
-        if(NumberOwners > 1 && NT_SUCCESS(Status)) {
-            DebugPrint(
-                "PrototypePTE: %p shared with:\n",
-                Node->FirstPrototypePte
-            );
+        if(NumberOwners <= 1) {
+            continue;
         }
 
+        DebugPrint(
+            "PrototypePTE: %p shared with:\n",
+            Node->FirstPrototypePte
+        );
+
         //
-        // Now let's walk the owners one by one and clean them up at the
-        // same time.
+        // Now let's walk the owners one by one.
         //
 
         while(TRUE) {
@@ -793,19 +831,15 @@ NTSTATUS SicDude() {
             }
 
             //
-            // Again, we are wary to only display stuff to the screen if we have more than an
-            // owner as well as a success status. If we don't have a success status we are just
-            // here to clean stuff up; nothing else.
+            // Display the owning process as well as the virtual addresses of the mapping.
             //
 
-            if(NumberOwners > 1 && NT_SUCCESS(Status)) {
-                DebugPrint(
-                    "  EPROCESS %p at %zx-%zx\n",
-                    Owner->Process,
-                    Owner->StartingVirtualAddress,
-                    Owner->EndingVirtualAddress
-                );
-            }
+            DebugPrint(
+                "  EPROCESS %p at %zx-%zx\n",
+                Owner->Process,
+                Owner->StartingVirtualAddress,
+                Owner->EndingVirtualAddress
+            );
 
             //
             // Clean-up the memory that we allocated for the SLIST entry.
@@ -815,24 +849,32 @@ NTSTATUS SicDude() {
                 Owner,
                 SIC_MEMORY_TAG_SLIST_ENTRY
             );
+
+            Owner = NULL;
         }
-
-        //
-        // Empty the list. Technically we don't really care but oh well.
-        //
-
-        ExInterlockedFlushSList(&Node->Owners);
     }
+
+    clean:
 
     //
     // Clear the table.
     //
 
     while(!RtlIsGenericTableEmptyAvl(&LookupTable)) {
+
+        //
+        // Get the entry at index 0.
+        //
+
         PVOID Entry = RtlGetElementGenericTableAvl(
             &LookupTable,
             0
         );
+
+        //
+        // And delete it! Note that the SicFreeRoutine is called
+        // on every node (and so it will also clean up the Owners).
+        //
 
         RtlDeleteElementGenericTableAvl(
             &LookupTable,
