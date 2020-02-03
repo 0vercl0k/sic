@@ -601,22 +601,36 @@ PVOID SicAllocateRoutine(
     // Allocate memory for the node.
     //
 
-    PSIC_LOOKUP_VAD_NODE Node =  ExAllocatePoolWithTag(
+    PVOID AvlNode =  ExAllocatePoolWithTag(
         PagedPool,
         ByteSize,
         SIC_MEMORY_TAG_AVL_ENTRY
     );
 
-    if(Node == NULL) {
+    if(AvlNode == NULL) {
         return NULL;
     }
+
+    //
+    // From the MSDN:
+    // '''
+    // For each new element, the AllocateRoutine is called to allocate memory for
+    // caller-supplied data plus some additional memory for use by the Rtl...GenericTableAvl
+    // routines. Note that because of this "additional memory," caller-supplied routines must
+    // not access the first sizeof(RTL_BALANCED_LINKS) bytes of any element in the generic table.
+    // '''
+    //
+
+    PSIC_LOOKUP_VAD_NODE Node = (PSIC_LOOKUP_VAD_NODE)(
+        (ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS)
+    );
 
     //
     // Initialize the SLIST of Owners.
     //
 
     InitializeSListHead(&Node->Owners);
-    return Node;
+    return AvlNode;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
@@ -626,7 +640,20 @@ VOID SicFreeRoutine(
     _In_ PVOID Buffer
 ) {
     UNREFERENCED_PARAMETER(Table);
-    PSIC_LOOKUP_VAD_NODE Node = Buffer;
+
+    //
+    // From the MSDN:
+    // '''
+    // For each new element, the AllocateRoutine is called to allocate memory for
+    // caller-supplied data plus some additional memory for use by the Rtl...GenericTableAvl
+    // routines. Note that because of this "additional memory," caller-supplied routines must
+    // not access the first sizeof(RTL_BALANCED_LINKS) bytes of any element in the generic table.
+    // '''
+    //
+
+    PSIC_LOOKUP_VAD_NODE Node = (PSIC_LOOKUP_VAD_NODE)(
+        (ULONG_PTR)Buffer + sizeof(RTL_BALANCED_LINKS)
+    );
 
     //
     // Let's clear the Owners SLIST.
@@ -664,15 +691,21 @@ VOID SicFreeRoutine(
     }
 
     //
+    // The list should be empty now.
+    //
+
+    NT_ASSERT(ExQueryDepthSList(&Node->Owners) == 0);
+
+    //
     // Free the actual node.
     //
 
     ExFreePoolWithTag(
-        Node,
+        Buffer,
         SIC_MEMORY_TAG_AVL_ENTRY
     );
 
-    Node = NULL;
+    Buffer = NULL;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
