@@ -889,6 +889,12 @@ NTSTATUS SicDude() {
 
             Owner = NULL;
         }
+
+        //
+        // The list should be empty now.
+        //
+
+        NT_ASSERT(ExQueryDepthSList(&Node->Owners) == 0);
     }
 
     clean:
@@ -917,7 +923,15 @@ NTSTATUS SicDude() {
             &LookupTable,
             Entry
         );
+
+        Entry = NULL;
     }
+
+    //
+    // The lookup table should also be empty now.
+    //
+
+    NT_ASSERT(RtlIsGenericTableEmptyAvl(&LookupTable));
 
     //
     // Don't forget to clean the process list.
