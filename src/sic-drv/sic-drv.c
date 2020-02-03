@@ -38,7 +38,8 @@ DRIVER_DISPATCH_PAGED SicDispatchDeviceControl;
 // https://github.com/processhacker/phnt
 //
 
-typedef enum _SYSTEM_INFORMATION_CLASS {
+typedef enum _SYSTEM_INFORMATION_CLASS
+{
     SystemBasicInformation, // q: SYSTEM_BASIC_INFORMATION
     SystemProcessorInformation, // q: SYSTEM_PROCESSOR_INFORMATION
     SystemPerformanceInformation, // q: SYSTEM_PERFORMANCE_INFORMATION
@@ -47,7 +48,8 @@ typedef enum _SYSTEM_INFORMATION_CLASS {
     SystemProcessInformation, // q: SYSTEM_PROCESS_INFORMATION
 } SYSTEM_INFORMATION_CLASS;
 
-typedef enum _KTHREAD_STATE {
+typedef enum _KTHREAD_STATE
+{
     Initialized,
     Ready,
     Running,
@@ -61,7 +63,8 @@ typedef enum _KTHREAD_STATE {
     MaximumThreadState
 } KTHREAD_STATE, * PKTHREAD_STATE;
 
-typedef struct _SYSTEM_THREAD_INFORMATION {
+typedef struct _SYSTEM_THREAD_INFORMATION
+{
     LARGE_INTEGER KernelTime;
     LARGE_INTEGER UserTime;
     LARGE_INTEGER CreateTime;
@@ -75,7 +78,8 @@ typedef struct _SYSTEM_THREAD_INFORMATION {
     KWAIT_REASON WaitReason;
 } SYSTEM_THREAD_INFORMATION, *PSYSTEM_THREAD_INFORMATION;
 
-typedef struct _SYSTEM_PROCESS_INFORMATION {
+typedef struct _SYSTEM_PROCESS_INFORMATION
+{
     ULONG NextEntryOffset;
     ULONG NumberOfThreads;
     LARGE_INTEGER WorkingSetPrivateSize; // since VISTA
@@ -208,11 +212,17 @@ typedef struct _MMVAD
         __VA_ARGS__               \
     );                            \
 }
+#ifdef SIC_VERBOSE
+#define DebugPrintVerbose(_fmt_, ...) DebugPrint((_fmt_), __VA_ARGS__)
+#else
+#define DebugPrintVerbose(_fmt_, ...) /* Nuthin. */
+#endif // SIC_VERBOSE
 #else
 #define DebugPrint(...) /* Nuthin. */
-#endif
+#endif // DBG
 
-typedef struct _SICK_LOOKUP_NODE_OWNERS {
+typedef struct _SICK_LOOKUP_NODE_OWNERS
+{
     SLIST_ENTRY SList;
     PEPROCESS Process;
     ULONG_PTR StartingVirtualAddress;
@@ -363,7 +373,7 @@ NTSTATUS SicDumpVad(
 
     PAGED_CODE();
 
-    DebugPrint("    VAD: %p\n", Vad);
+    DebugPrintVerbose("    VAD: %p\n", Vad);
 
     if(Vad->FirstPrototypePte == NULL) {
         return STATUS_SUCCESS;
@@ -380,9 +390,9 @@ NTSTATUS SicDumpVad(
     const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
     const ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
 
-    DebugPrint("      StartingVirtualAddress: %zx\n", StartingVirtualAddress);
-    DebugPrint("      EndingVirtualAddress: %zx\n", EndingVirtualAddress);
-    DebugPrint("      ProtoPTE: %p\n", Vad->FirstPrototypePte);
+    DebugPrintVerbose("      StartingVirtualAddress: %zx\n", StartingVirtualAddress);
+    DebugPrintVerbose("      EndingVirtualAddress: %zx\n", EndingVirtualAddress);
+    DebugPrintVerbose("      ProtoPTE: %p\n", Vad->FirstPrototypePte);
 
     //
     // Populate the node before adding it to the lookup table.
