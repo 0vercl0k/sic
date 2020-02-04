@@ -257,18 +257,59 @@ typedef struct _SIC_WALK_VAD_CTX
 _Function_class_(DRIVER_UNLOAD)
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-VOID SicDriverUnload(
+VOID
+SicDriverUnload(
     _In_ PDRIVER_OBJECT DriverObject
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Unloads the driver. Pretty much empty for now.
+
+Arguments:
+
+    DriverObject - The driver object getting unloaded.
+
+Return Value:
+
+    None.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(DriverObject);
     PAGED_CODE();
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicGetProcessList(
+NTSTATUS
+SicGetProcessList(
     _Out_ PSYSTEM_PROCESS_INFORMATION *ProcessList
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Gets a list of running process on the system. If successful,
+    *ProcessList holds a pointer to the beginning of the list. Also,
+    the callers are expected to release the memory allocated for the list.
+
+Arguments:
+
+    ProcessList - Pointer to the beginning of the list.
+
+Return Value:
+
+    STATUS_SUCCESS if successful, STATUS_INVALID_PARAMETER if ProcessList is
+    NULL and STATUS_UNSUCCESSFUL if failed.
+
+--*/
+
+{
     const UINT32 MaxAttempts = 10;
     NTSTATUS Status = STATUS_SUCCESS;
 
@@ -364,10 +405,33 @@ NTSTATUS SicGetProcessList(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicDumpVad(
+NTSTATUS
+SicDumpVad(
     _In_ const PMMVAD Vad,
     _Inout_ PVOID Context
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Dumps a VAD entry into a lookup table. The goal of this routine
+    is to keep track of every VAD with a PrototypePTE non NULL
+
+Arguments:
+
+    Vad - Pointer to the beginning of the list.
+
+    Context - The Context is a PSIC_WALK_VAD_CTX.
+
+Return Value:
+
+    STATUS_SUCCESS if successful and STATUS_INSUFFICIENT_RESOURCES if
+    an allocation failed.
+
+--*/
+
+{
     const PSIC_WALK_VAD_CTX WalkVadContext = Context;
     SIC_LOOKUP_VAD_NODE VadNode;
 
@@ -440,11 +504,38 @@ NTSTATUS SicDumpVad(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicWalkVadTreeInOrder(
+NTSTATUS
+SicWalkVadTreeInOrder(
     _In_ const PMMVAD Root,
     _In_ SIC_WALK_VAD_ROUTINE Routine,
     _Inout_opt_ PVOID Context
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Walks the VAD AVL tree starting from a Root. For every node
+    encountered, the user provided callback: Routine(Node, Context)
+    is invoked.
+
+Arguments:
+
+    Root - Pointer to the root of the VAD tree.
+
+    Routine - Callback routine provided by the user.
+
+    Context - Pointer provided by the user that will get
+    passed to the Routine during invokation.
+
+Return Value:
+
+    STATUS_SUCCESS if successful and STATUS_INSUFFICIENT_RESOURCES if
+    an allocation failed.
+
+--*/
+
+{
     typedef struct _NODE {
         LIST_ENTRY List;
         PMMVAD Vad;
@@ -581,11 +672,36 @@ NTSTATUS SicWalkVadTreeInOrder(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-RTL_GENERIC_COMPARE_RESULTS SicCompareRoutine(
+RTL_GENERIC_COMPARE_RESULTS
+SicCompareRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ PVOID FirstStruct,
     _In_ PVOID SecondStruct
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Compares one SIC_LOOKUP_VAD_NODE to another.
+
+Arguments:
+
+    Table - Pointer to the AVL table.
+
+    FirstStruct - First node.
+
+    SecondStruct - Second node.
+
+Return Value:
+
+    GenericEqual if the nodes are equal, GenericLessThan if the first node
+    is less than the second node or GenericGreaterThan if the first node
+    is greater than the second node.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(Table);
     const PSIC_LOOKUP_VAD_NODE First = FirstStruct;
     const PSIC_LOOKUP_VAD_NODE Second = SecondStruct;
@@ -604,7 +720,27 @@ _IRQL_requires_same_
 PVOID SicAllocateRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ ULONG ByteSize
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Allocates a SIC_LOOKUP_VAD_NODE for our lookup table.
+
+Arguments:
+
+    Table - Pointer to the AVL table.
+
+    ByteSize - Size to allocate.
+
+Return Value:
+
+    NULL if the allocation failed or a pointer to the node.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(Table);
 
     //
@@ -648,7 +784,27 @@ _IRQL_requires_same_
 VOID SicFreeRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ PVOID Buffer
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Frees a node from the lookup table.
+
+Arguments:
+
+    Table - Pointer to the AVL table.
+
+    Buffer - Pointer to the node to release.
+
+Return Value:
+
+    None.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(Table);
 
     //
@@ -720,7 +876,27 @@ VOID SicFreeRoutine(
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicDude() {
+NTSTATUS
+SicDude(
+    )
+
+/*++
+
+Routine Description:
+
+    Do the job.
+
+Arguments:
+
+    None.
+
+Return Value:
+
+    STATUS_SUCCESS if successful or STATUS_* otherwise.
+
+--*/
+
+{
     NTSTATUS Status = STATUS_SUCCESS;
     PSYSTEM_PROCESS_INFORMATION ProcessList = NULL;
     PSYSTEM_PROCESS_INFORMATION CurrentProcess = NULL;
@@ -962,10 +1138,31 @@ NTSTATUS SicDude() {
 _Function_class_(DRIVER_DISPATCH)
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_
-NTSTATUS SicDispatchDeviceControl(
+NTSTATUS
+SicDispatchDeviceControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _Inout_ PIRP Irp
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    Handles IOCTL requests coming from usermode.
+
+Arguments:
+
+    DeviceObject - Pointer to the device object.
+
+    Irp - Pointer to the Interrupt Request Packet.
+
+Return Value:
+
+    STATUS_SUCCESS if successful or STATUS_* otherwise.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(DeviceObject);
     NTSTATUS Status = STATUS_SUCCESS;
     const PIO_STACK_LOCATION IoStackLocation = IoGetCurrentIrpStackLocation(Irp);
@@ -1000,7 +1197,32 @@ _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS DriverEntry(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath
-) {
+    )
+
+/*++
+
+Routine Description:
+
+    This is the main of the driver.
+
+Arguments:
+
+    DriverObject - Pointer to the driver object.
+
+    RegistryPath - According to MSDN:
+    """
+    A pointer to a UNICODE_STRING structure that
+    specifies the path to the driver's Parameters
+    key in the registry.
+    """
+
+Return Value:
+
+    STATUS_SUCCESS if successful or STATUS_* otherwise.
+
+--*/
+
+{
     UNREFERENCED_PARAMETER(RegistryPath);
 
     PAGED_CODE();
