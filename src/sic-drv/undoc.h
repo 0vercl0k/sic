@@ -97,7 +97,19 @@ ZwQuerySystemInformation(
     _Out_writes_bytes_opt_(SystemInformationLength) PVOID SystemInformation,
     _In_ ULONG SystemInformationLength,
     _Out_opt_ PULONG ReturnLength
-);
+    );
+
+extern
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+ZwQueryInformationProcess(
+    _In_ HANDLE ProcessHandle,
+    _In_ PROCESSINFOCLASS ProcessInformationClass,
+    _Out_writes_bytes_(ProcessInformationLength) PVOID ProcessInformation,
+    _In_ ULONG ProcessInformationLength,
+    _Out_opt_ PULONG ReturnLength
+    );
 
 //
 // Thanks to ntdiff.github.io / pdbex.

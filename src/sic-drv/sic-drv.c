@@ -71,6 +71,149 @@ Return Value:
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
+SicGetProcessName(
+    _In_ const PEPROCESS Process,
+    _Out_ PUNICODE_STRING *ProcessName
+)
+
+/*++
+
+Routine Description:
+
+    Gets the name of Process. The caller are expected to free the
+    PUNICODE_STRING.
+
+Arguments:
+
+    Process - Handle to the process.
+
+    ProcessName - Pointer to where the process name will be stored.
+
+Return Value:
+
+    STATUS_SUCCESS if successful, STATUS_INVALID_PARAMETER if ProcessName is
+    NULL and appropriate STATUS_* if failed.
+
+--*/
+
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    ULONG ReturnedLength = 0;
+    PUNICODE_STRING LocalProcessName = NULL;
+    HANDLE ProcessHandle = NULL;
+
+    //
+    // Initialize the output buffer to NULL.
+    //
+
+    *ProcessName = NULL;
+
+    //
+    // If we didn't receive a ProcessName, we fail the call as we
+    // expect one.
+    //
+
+    if(!ARGUMENT_PRESENT(ProcessName)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto clean;
+    }
+
+    //
+    // Get a handle from the process object.
+    //
+
+    Status = ObOpenObjectByPointer(
+        Process,
+        OBJ_KERNEL_HANDLE,
+        NULL,
+        0,
+        *PsProcessType,
+        KernelMode,
+        &ProcessHandle
+    );
+
+    if(!NT_SUCCESS(Status)) {
+        goto clean;
+    }
+
+    //
+    // How much space do we need?
+    //
+
+    Status = ZwQueryInformationProcess(
+        ProcessHandle,
+        ProcessImageFileName,
+        NULL,
+        0,
+        &ReturnedLength
+    );
+
+    //
+    // Allocate memory to receive the process name.
+    //
+
+    LocalProcessName = ExAllocatePoolWithTag(
+        PagedPool,
+        ReturnedLength,
+        SIC_MEMORY_TAG
+    );
+
+    if(LocalProcessName == NULL) {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto clean;
+    }
+
+    //
+    // Get the process name.
+    //
+
+    Status = ZwQueryInformationProcess(
+        ProcessHandle,
+        ProcessImageFileName,
+        LocalProcessName,
+        ReturnedLength,
+        &ReturnedLength
+    );
+
+    if(NT_SUCCESS(Status)) {
+        *ProcessName = LocalProcessName;
+        LocalProcessName = NULL;
+    }
+
+    clean:
+
+    //
+    // If we still have a reference to this buffer, it means something
+    // went wrong and we need to release the memory.
+    //
+
+    if(LocalProcessName) {
+        ExFreePoolWithTag(
+            LocalProcessName,
+            SIC_MEMORY_TAG
+        );
+
+        LocalProcessName = NULL;
+    }
+
+    //
+    // Don't forget to close the handle.
+    //
+
+    if(ProcessHandle != NULL) {
+        ZwClose(ProcessHandle);
+    }
+
+    //
+    // We're done!
+    //
+
+    return Status;
+}
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_
+NTSTATUS
 SicGetProcessList(
     _Out_ PSYSTEM_PROCESS_INFORMATION *ProcessList
     )
@@ -821,6 +964,8 @@ Return Value:
 
         while(TRUE) {
 
+            PUNICODE_STRING OwnerProcessName = NULL;
+
             //
             // Pop, pop, pop.
             //
@@ -839,12 +984,24 @@ Return Value:
             }
 
             //
+            // Get the owner process name.
+            //
+
+            Status = SicGetProcessName(
+                Owner->Process,
+                &OwnerProcessName
+            );
+
+            ASSERT(NT_SUCCESS(Status));
+
+            //
             // Display the owning process as well as the virtual addresses of the mapping.
             //
 
             DebugPrint(
-                "  EPROCESS %p at %zx-%zx\n",
+                "  EPROCESS %p (%wZ) at %zx-%zx\n",
                 Owner->Process,
+                OwnerProcessName,
                 Owner->StartingVirtualAddress,
                 Owner->EndingVirtualAddress
             );
@@ -859,6 +1016,17 @@ Return Value:
             );
 
             Owner = NULL;
+
+            //
+            // Clean-up the process name.
+            //
+
+            ExFreePoolWithTag(
+                OwnerProcessName,
+                SIC_MEMORY_TAG
+            );
+
+            OwnerProcessName = NULL;
         }
 
         //
