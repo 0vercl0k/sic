@@ -635,6 +635,8 @@ Return Value:
     const PSIC_LOOKUP_VAD_NODE Second = SecondStruct;
     const BOOLEAN Equal = First->FirstPrototypePte == Second->FirstPrototypePte;
 
+    PAGED_CODE();
+
     if(Equal) {
         return GenericEqual;
     }
@@ -670,12 +672,16 @@ Return Value:
 
 {
     UNREFERENCED_PARAMETER(Table);
+    PVOID AvlNode = NULL;
+    PSIC_LOOKUP_VAD_NODE Node = NULL;
+
+    PAGED_CODE();
 
     //
     // Allocate memory for the node.
     //
 
-    PVOID AvlNode =  ExAllocatePoolWithTag(
+    AvlNode = ExAllocatePoolWithTag(
         PagedPool,
         ByteSize,
         SIC_MEMORY_TAG_AVL_ENTRY
@@ -695,7 +701,7 @@ Return Value:
     // '''
     //
 
-    PSIC_LOOKUP_VAD_NODE Node = (PSIC_LOOKUP_VAD_NODE)(
+    Node = (PSIC_LOOKUP_VAD_NODE)(
         (ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS)
     );
 
@@ -734,6 +740,9 @@ Return Value:
 
 {
     UNREFERENCED_PARAMETER(Table);
+    PSIC_LOOKUP_VAD_NODE Node = NULL;
+
+    PAGED_CODE();
 
     //
     // From the MSDN:
@@ -745,7 +754,7 @@ Return Value:
     // '''
     //
 
-    PSIC_LOOKUP_VAD_NODE Node = (PSIC_LOOKUP_VAD_NODE)(
+    Node = (PSIC_LOOKUP_VAD_NODE)(
         (ULONG_PTR)Buffer + sizeof(RTL_BALANCED_LINKS)
     );
 
