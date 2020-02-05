@@ -233,7 +233,7 @@ Arguments:
 Return Value:
 
     STATUS_SUCCESS if successful, STATUS_INVALID_PARAMETER if ProcessList is
-    NULL and STATUS_UNSUCCESSFUL if failed.
+    NULL and appropriate STATUS_* otherwise.
 
 --*/
 
@@ -241,14 +241,7 @@ Return Value:
     const UINT32 MaxAttempts = 10;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    //
-    // If we didn't receive a ProcessList, we fail the call as we
-    // expect one.
-    //
-
-    if(!ARGUMENT_PRESENT(ProcessList)) {
-        return STATUS_INVALID_PARAMETER;
-    }
+    PAGED_CODE();
 
     //
     // Initialize the output buffer to NULL.
@@ -257,12 +250,23 @@ Return Value:
     *ProcessList = NULL;
 
     //
+    // If we didn't receive a ProcessList, we fail the call as we
+    // expect one.
+    //
+
+    if(!ARGUMENT_PRESENT(ProcessList)) {
+        Status = STATUS_INVALID_PARAMETER;
+        goto clean;
+    }
+
+    //
     // Try out to get a process list in a maximum number of attempts.
     // We do this because we can encounter racy behavior where the world
     // changes in between the two ZwQuerySystemInformation.. sigh.
     //
 
     for(UINT32 Attempt = 0; Attempt < MaxAttempts; Attempt++) {
+
         ULONG ReturnLength = 0;
         PVOID LocalProcessList = NULL;
 
@@ -288,7 +292,8 @@ Return Value:
         );
 
         if(LocalProcessList == NULL) {
-            continue;
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto clean;
         }
 
         //
@@ -307,6 +312,7 @@ Return Value:
         //
 
         if(!NT_SUCCESS(Status)) {
+
             ExFreePoolWithTag(
                 LocalProcessList,
                 SIC_MEMORY_TAG
@@ -321,14 +327,18 @@ Return Value:
         //
 
         *ProcessList = LocalProcessList;
+
+        LocalProcessList = NULL;
         break;
     }
+
+    clean:
 
     //
     // If we managed to get the list, it's all good otherwise it's a failure.
     //
 
-    return (*ProcessList != NULL) ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
+    return Status;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
