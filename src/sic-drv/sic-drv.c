@@ -858,6 +858,7 @@ Return Value:
     NTSTATUS Status = STATUS_SUCCESS;
     PSYSTEM_PROCESS_INFORMATION ProcessList = NULL;
     PSYSTEM_PROCESS_INFORMATION CurrentProcess = NULL;
+    LIST_ENTRY ProcessToDerefListHead;
     RTL_AVL_TABLE LookupTable;
     SIC_WALK_VAD_CTX WalkVadContext;
 
@@ -878,6 +879,12 @@ Return Value:
     WalkVadContext.LookupTable = &LookupTable;
 
     //
+    // Initialize the list of process to deref.
+    //
+
+    InitializeListHead(&ProcessToDerefListHead);
+
+    //
     // Get a list of processes.
     //
 
@@ -893,6 +900,7 @@ Return Value:
 
     CurrentProcess = ProcessList;
     while(CurrentProcess->NextEntryOffset != 0) {
+
         PEPROCESS Process = NULL;
 
         //
@@ -914,6 +922,37 @@ Return Value:
         if(!NT_SUCCESS(Status)) {
             goto next;
         }
+
+        //
+        // Allocate a node to push it into the list of processes to dereference.
+        //
+
+        PSIC_PROCESS_TO_DEREF ProcessToDeref = ExAllocatePoolWithTag(
+            PagedPool,
+            sizeof(SIC_PROCESS_TO_DEREF),
+            SIC_MEMORY_TAG
+        );
+
+        if(ProcessToDeref == NULL) {
+
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+
+            //
+            // Don't forget to de-reference the EPROCESS object.
+            //
+
+            ObDereferenceObject(Process);
+
+            Process = NULL;
+            goto clean;
+        }
+
+        //
+        // Insert the node in the list.
+        //
+
+        ProcessToDeref->Process = Process;
+        InsertTailList(&ProcessToDerefListHead, &ProcessToDeref->List);
 
         DebugPrint("  EPROCESS: %p\n", Process);
 
@@ -944,14 +983,6 @@ Return Value:
             SicDumpVad,
             &WalkVadContext
         );
-
-        //
-        // Don't forget to de-reference the EPROCESS object.
-        //
-
-        ObDereferenceObject(Process);
-
-        Process = NULL;
 
         next:
 
@@ -1067,6 +1098,38 @@ Return Value:
     }
 
     clean:
+
+    //
+    // Dereference the processes we referenced earlier.
+    //
+
+    while(!IsListEmpty(&ProcessToDerefListHead)) {
+
+        //
+        // Grab an entry off the list.
+        //
+
+        PSIC_PROCESS_TO_DEREF ProcessToDeref = (PSIC_PROCESS_TO_DEREF)RemoveHeadList(
+            &ProcessToDerefListHead
+        );
+
+        //
+        // Dereference the process.
+        //
+
+        ObDereferenceObject(ProcessToDeref->Process);
+
+        //
+        // And clean up the memory.
+        //
+
+        ExFreePoolWithTag(
+            ProcessToDeref,
+            SIC_MEMORY_TAG
+        );
+
+        ProcessToDeref = NULL;
+    }
 
     //
     // Clear the table.

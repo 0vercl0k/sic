@@ -63,3 +63,9 @@ typedef struct _SIC_WALK_VAD_CTX
     PRTL_AVL_TABLE LookupTable;
     PEPROCESS Process;
 } SIC_WALK_VAD_CTX, *PSIC_WALK_VAD_CTX;
+
+typedef struct _SIC_PROCESS_TO_DEREF
+{
+    LIST_ENTRY List;
+    PEPROCESS Process;
+} SIC_PROCESS_TO_DEREF, * PSIC_PROCESS_TO_DEREF;
