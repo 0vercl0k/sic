@@ -645,6 +645,13 @@ Return Value:
 
 {
     UNREFERENCED_PARAMETER(Table);
+
+    //
+    // Note that the compare routine actually receives directly pointers
+    // to the user buffer. This means we don't need to do pointer arithmetic
+    // to skip the first sizeof(nt!_RTL_BALANCED_LINKS) bytes. Kinda odd right?
+    //
+
     const PSIC_LOOKUP_VAD_NODE First = FirstStruct;
     const PSIC_LOOKUP_VAD_NODE Second = SecondStruct;
     const BOOLEAN Equal = First->FirstPrototypePte == Second->FirstPrototypePte;
