@@ -938,7 +938,7 @@ Return Value:
             Status = STATUS_INSUFFICIENT_RESOURCES;
 
             //
-            // Don't forget to de-reference the EPROCESS object.
+            // Don't forget to dereference the EPROCESS object.
             //
 
             ObDereferenceObject(Process);
@@ -1170,6 +1170,7 @@ Return Value:
     //
 
     if(ProcessList != NULL) {
+
         ExFreePoolWithTag(
             ProcessList,
             SIC_MEMORY_TAG
