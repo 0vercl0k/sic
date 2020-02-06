@@ -372,13 +372,15 @@ Return Value:
 {
     const PSIC_WALK_VAD_CTX WalkVadContext = Context;
     SIC_LOOKUP_VAD_NODE VadNode;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     PAGED_CODE();
 
     DebugPrintVerbose("    VAD: %p\n", Vad);
 
     if(Vad->FirstPrototypePte == NULL) {
-        return STATUS_SUCCESS;
+        Status = STATUS_SUCCESS;
+        goto clean;
     }
 
     const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | (
@@ -424,7 +426,8 @@ Return Value:
     );
 
     if(Owner == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto clean;
     }
 
     Owner->Process = WalkVadContext->Process;
@@ -437,7 +440,8 @@ Return Value:
         NULL
     );
 
-    return STATUS_SUCCESS;
+    clean:
+    return Status;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
