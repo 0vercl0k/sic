@@ -45,7 +45,7 @@ _IRQL_requires_same_
 VOID
 SicDriverUnload(
     _In_ PDRIVER_OBJECT DriverObject
-    )
+)
 
 /*++
 
@@ -73,7 +73,7 @@ _IRQL_requires_same_
 NTSTATUS
 SicGetProcessName(
     _In_ const PEPROCESS Process,
-    _Out_ PUNICODE_STRING *ProcessName
+    _Out_ PUNICODE_STRING* ProcessName
 )
 
 /*++
@@ -180,7 +180,7 @@ Return Value:
         LocalProcessName = NULL;
     }
 
-    clean:
+clean:
 
     //
     // If we still have a reference to this buffer, it means something
@@ -215,8 +215,8 @@ _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 SicGetProcessList(
-    _Out_ PSYSTEM_PROCESS_INFORMATION *ProcessList
-    )
+    _Out_ PSYSTEM_PROCESS_INFORMATION* ProcessList
+)
 
 /*++
 
@@ -332,7 +332,7 @@ Return Value:
         break;
     }
 
-    clean:
+clean:
 
     //
     // If we managed to get the list, it's all good otherwise it's a failure.
@@ -347,7 +347,7 @@ NTSTATUS
 SicDumpVad(
     _In_ const PMMVAD Vad,
     _Inout_ PVOID Context
-    )
+)
 
 /*++
 
@@ -385,11 +385,11 @@ Return Value:
 
     const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | (
         (ULONG_PTR)Vad->Core.StartingVpnHigh << 32
-    );
+        );
 
     const ULONG_PTR EndingVpn = Vad->Core.EndingVpn | (
         (ULONG_PTR)Vad->Core.EndingVpnHigh << 32
-    );
+        );
 
     const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
     const ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
@@ -440,7 +440,7 @@ Return Value:
         NULL
     );
 
-    clean:
+clean:
     return Status;
 }
 
@@ -451,7 +451,7 @@ SicWalkVadTreeInOrder(
     _In_ const PMMVAD Root,
     _In_ SIC_WALK_VAD_ROUTINE Routine,
     _Inout_opt_ PVOID Context
-    )
+)
 
 /*++
 
@@ -481,7 +481,7 @@ Return Value:
     typedef struct _NODE {
         LIST_ENTRY List;
         PMMVAD Vad;
-    } VAD_NODE, *PVAD_NODE;
+    } VAD_NODE, * PVAD_NODE;
 
     NTSTATUS Status = STATUS_SUCCESS;
     PMMVAD CurrentVad = NULL;
@@ -583,7 +583,7 @@ Return Value:
         }
     }
 
-    clean:
+clean:
 
     //
     // Ensure we have cleaned up every node in the list.
@@ -619,7 +619,7 @@ SicCompareRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ PVOID FirstStruct,
     _In_ PVOID SecondStruct
-    )
+)
 
 /*++
 
@@ -671,7 +671,7 @@ _IRQL_requires_same_
 PVOID SicAllocateRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ ULONG ByteSize
-    )
+)
 
 /*++
 
@@ -724,7 +724,7 @@ Return Value:
 
     Node = (PSIC_LOOKUP_VAD_NODE)(
         (ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS)
-    );
+        );
 
     //
     // Initialize the SLIST of Owners.
@@ -739,7 +739,7 @@ _IRQL_requires_same_
 VOID SicFreeRoutine(
     _In_ PRTL_AVL_TABLE Table,
     _In_ PVOID Buffer
-    )
+)
 
 /*++
 
@@ -777,7 +777,7 @@ Return Value:
 
     Node = (PSIC_LOOKUP_VAD_NODE)(
         (ULONG_PTR)Buffer + sizeof(RTL_BALANCED_LINKS)
-    );
+        );
 
     //
     // Let's clear the Owners SLIST.
@@ -836,7 +836,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
 NTSTATUS
 SicDude(
-    )
+)
 
 /*++
 
@@ -984,7 +984,7 @@ Return Value:
             &WalkVadContext
         );
 
-        next:
+    next:
 
         //
         // We are done with the current process, move to the next.
@@ -992,7 +992,7 @@ Return Value:
 
         CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)(
             (ULONG_PTR)CurrentProcess + CurrentProcess->NextEntryOffset
-        );
+            );
     }
 
     //
@@ -1097,7 +1097,7 @@ Return Value:
         NT_ASSERT(ExQueryDepthSList(&Node->Owners) == 0);
     }
 
-    clean:
+clean:
 
     //
     // Dereference the processes we referenced earlier.
@@ -1189,7 +1189,7 @@ NTSTATUS
 SicDispatchDeviceControl(
     _In_ PDEVICE_OBJECT DeviceObject,
     _Inout_ PIRP Irp
-    )
+)
 
 /*++
 
@@ -1218,9 +1218,9 @@ Return Value:
     PAGED_CODE();
 
     switch(IoControlCode) {
-        default: {
-            break;
-        }
+    default: {
+        break;
+    }
     }
 
     //
@@ -1244,7 +1244,7 @@ _IRQL_requires_(PASSIVE_LEVEL)
 NTSTATUS DriverEntry(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath
-    )
+)
 
 /*++
 

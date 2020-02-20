@@ -41,13 +41,13 @@ typedef struct _SICK_LOOKUP_NODE_OWNERS
     PEPROCESS Process;
     ULONG_PTR StartingVirtualAddress;
     ULONG_PTR EndingVirtualAddress;
-} SICK_LOOKUP_NODE_OWNER, *PSICK_LOOKUP_NODE_OWNER;
+} SICK_LOOKUP_NODE_OWNER, * PSICK_LOOKUP_NODE_OWNER;
 
 typedef struct _SIC_LOOKUP_VAD_NODE
 {
-    struct _MMPTE *FirstPrototypePte;
+    struct _MMPTE* FirstPrototypePte;
     SLIST_HEADER Owners;
-} SIC_LOOKUP_VAD_NODE, *PSIC_LOOKUP_VAD_NODE;
+} SIC_LOOKUP_VAD_NODE, * PSIC_LOOKUP_VAD_NODE;
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_
@@ -56,13 +56,13 @@ NTSTATUS
 (*SIC_WALK_VAD_ROUTINE)(
     _In_ const PMMVAD Vad,
     _Inout_opt_ PVOID Context
-);
+    );
 
 typedef struct _SIC_WALK_VAD_CTX
 {
     PRTL_AVL_TABLE LookupTable;
     PEPROCESS Process;
-} SIC_WALK_VAD_CTX, *PSIC_WALK_VAD_CTX;
+} SIC_WALK_VAD_CTX, * PSIC_WALK_VAD_CTX;
 
 typedef struct _SIC_PROCESS_TO_DEREF
 {
