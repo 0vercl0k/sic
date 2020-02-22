@@ -12,6 +12,7 @@
 //
 
 #include "sic-drv.h"
+#include "..\common\common.h"
 
 //
 // Declare a bunch of functions to satisfy the below pragmas.
@@ -30,22 +31,31 @@ DRIVER_DISPATCH_PAGED SicDispatchDeviceControl;
 //
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(INIT, DriverEntry)
-#pragma alloc_text(PAGE, SicDriverUnload)
-#pragma alloc_text(PAGE, SicDispatchDeviceControl)
+#    pragma alloc_text(INIT, DriverEntry)
+#    pragma alloc_text(PAGE, SicDriverUnload)
+#    pragma alloc_text(PAGE, SicDispatchDeviceControl)
 #endif
+
+//
+// Global context.
+//
+
+SIC_CONTEXT gSicCtx;
+
+//
+// Device and symbolic link name.
+//
+
+#define SIC_NT_DEVICE_NAME L"\\Device\\SoSIC"
+#define SIC_DOS_DEVICE_NAME L"\\DosDevices\\SoSIC"
 
 //
 // Time to do some work I suppose.
 //
 
-_Function_class_(DRIVER_UNLOAD)
-_IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-VOID
-SicDriverUnload(
-    _In_ PDRIVER_OBJECT DriverObject
-)
+_Function_class_(DRIVER_UNLOAD) _IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ VOID
+SicDriverUnload(_In_ PDRIVER_OBJECT DriverObject)
 
 /*++
 
@@ -65,16 +75,27 @@ Return Value:
 
 {
     UNREFERENCED_PARAMETER(DriverObject);
+
     PAGED_CODE();
+
+    const PDEVICE_OBJECT DeviceObject = DriverObject->DeviceObject;
+    UNICODE_STRING NtWin32NameString = RTL_CONSTANT_STRING(SIC_DOS_DEVICE_NAME);
+
+    //
+    // Delete the link from our device name to a name in the Win32 namespace.
+    //
+
+    IoDeleteSymbolicLink(&NtWin32NameString);
+
+    if (DeviceObject != NULL)
+    {
+        IoDeleteDevice(DeviceObject);
+    }
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicGetProcessName(
-    _In_ const PEPROCESS Process,
-    _Out_ PUNICODE_STRING* ProcessName
-)
+_IRQL_requires_same_ NTSTATUS
+SicGetProcessName(_In_ const PEPROCESS Process, _Out_ PUNICODE_STRING *ProcessName)
 
 /*++
 
@@ -82,6 +103,7 @@ Routine Description:
 
     Gets the name of Process. The caller are expected to free the
     PUNICODE_STRING.
+
 
 Arguments:
 
@@ -113,7 +135,8 @@ Return Value:
     // expect one.
     //
 
-    if(!ARGUMENT_PRESENT(ProcessName)) {
+    if (!ARGUMENT_PRESENT(ProcessName))
+    {
         Status = STATUS_INVALID_PARAMETER;
         goto clean;
     }
@@ -122,17 +145,10 @@ Return Value:
     // Get a handle from the process object.
     //
 
-    Status = ObOpenObjectByPointer(
-        Process,
-        OBJ_KERNEL_HANDLE,
-        NULL,
-        0,
-        *PsProcessType,
-        KernelMode,
-        &ProcessHandle
-    );
+    Status = ObOpenObjectByPointer(Process, OBJ_KERNEL_HANDLE, NULL, 0, *PsProcessType, KernelMode, &ProcessHandle);
 
-    if(!NT_SUCCESS(Status)) {
+    if (!NT_SUCCESS(Status))
+    {
         goto clean;
     }
 
@@ -140,25 +156,16 @@ Return Value:
     // How much space do we need?
     //
 
-    Status = ZwQueryInformationProcess(
-        ProcessHandle,
-        ProcessImageFileName,
-        NULL,
-        0,
-        &ReturnedLength
-    );
+    Status = ZwQueryInformationProcess(ProcessHandle, ProcessImageFileName, NULL, 0, &ReturnedLength);
 
     //
     // Allocate memory to receive the process name.
     //
 
-    LocalProcessName = ExAllocatePoolWithTag(
-        PagedPool,
-        ReturnedLength,
-        SIC_MEMORY_TAG
-    );
+    LocalProcessName = ExAllocatePoolWithTag(PagedPool, ReturnedLength, SIC_MEMORY_TAG);
 
-    if(LocalProcessName == NULL) {
+    if (LocalProcessName == NULL)
+    {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto clean;
     }
@@ -168,14 +175,10 @@ Return Value:
     //
 
     Status = ZwQueryInformationProcess(
-        ProcessHandle,
-        ProcessImageFileName,
-        LocalProcessName,
-        ReturnedLength,
-        &ReturnedLength
-    );
+        ProcessHandle, ProcessImageFileName, LocalProcessName, ReturnedLength, &ReturnedLength);
 
-    if(NT_SUCCESS(Status)) {
+    if (NT_SUCCESS(Status))
+    {
         *ProcessName = LocalProcessName;
         LocalProcessName = NULL;
     }
@@ -187,11 +190,9 @@ clean:
     // went wrong and we need to release the memory.
     //
 
-    if(LocalProcessName) {
-        ExFreePoolWithTag(
-            LocalProcessName,
-            SIC_MEMORY_TAG
-        );
+    if (LocalProcessName)
+    {
+        ExFreePoolWithTag(LocalProcessName, SIC_MEMORY_TAG);
 
         LocalProcessName = NULL;
     }
@@ -200,7 +201,8 @@ clean:
     // Don't forget to close the handle.
     //
 
-    if(ProcessHandle != NULL) {
+    if (ProcessHandle != NULL)
+    {
         ZwClose(ProcessHandle);
     }
 
@@ -212,11 +214,8 @@ clean:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicGetProcessList(
-    _Out_ PSYSTEM_PROCESS_INFORMATION* ProcessList
-)
+_IRQL_requires_same_ NTSTATUS
+SicGetProcessList(_Out_ PSYSTEM_PROCESS_INFORMATION *ProcessList)
 
 /*++
 
@@ -254,7 +253,8 @@ Return Value:
     // expect one.
     //
 
-    if(!ARGUMENT_PRESENT(ProcessList)) {
+    if (!ARGUMENT_PRESENT(ProcessList))
+    {
         Status = STATUS_INVALID_PARAMETER;
         goto clean;
     }
@@ -265,8 +265,8 @@ Return Value:
     // changes in between the two ZwQuerySystemInformation.. sigh.
     //
 
-    for(UINT32 Attempt = 0; Attempt < MaxAttempts; Attempt++) {
-
+    for (UINT32 Attempt = 0; Attempt < MaxAttempts; Attempt++)
+    {
         ULONG ReturnLength = 0;
         PVOID LocalProcessList = NULL;
 
@@ -274,24 +274,16 @@ Return Value:
         // How much space do we need?
         //
 
-        Status = ZwQuerySystemInformation(
-            SystemProcessInformation,
-            NULL,
-            0,
-            &ReturnLength
-        );
+        Status = ZwQuerySystemInformation(SystemProcessInformation, NULL, 0, &ReturnLength);
 
         //
         // Allocate memory to receive the process list.
         //
 
-        LocalProcessList = ExAllocatePoolWithTag(
-            PagedPool,
-            ReturnLength,
-            SIC_MEMORY_TAG
-        );
+        LocalProcessList = ExAllocatePoolWithTag(PagedPool, ReturnLength, SIC_MEMORY_TAG);
 
-        if(LocalProcessList == NULL) {
+        if (LocalProcessList == NULL)
+        {
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto clean;
         }
@@ -300,23 +292,15 @@ Return Value:
         // Get a list of the processes running on the system.
         //
 
-        Status = ZwQuerySystemInformation(
-            SystemProcessInformation,
-            LocalProcessList,
-            ReturnLength,
-            &ReturnLength
-        );
+        Status = ZwQuerySystemInformation(SystemProcessInformation, LocalProcessList, ReturnLength, &ReturnLength);
 
         //
         // If we fail, let's clean up behind ourselves, and give it another try!
         //
 
-        if(!NT_SUCCESS(Status)) {
-
-            ExFreePoolWithTag(
-                LocalProcessList,
-                SIC_MEMORY_TAG
-            );
+        if (!NT_SUCCESS(Status))
+        {
+            ExFreePoolWithTag(LocalProcessList, SIC_MEMORY_TAG);
 
             LocalProcessList = NULL;
             continue;
@@ -342,12 +326,8 @@ clean:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicDumpVad(
-    _In_ const PMMVAD Vad,
-    _Inout_ PVOID Context
-)
+_IRQL_requires_same_ NTSTATUS
+SicDumpVad(_In_ const PMMVAD Vad, _Inout_ PVOID Context)
 
 /*++
 
@@ -377,19 +357,23 @@ Return Value:
     PAGED_CODE();
 
     DebugPrintVerbose("    VAD: %p\n", Vad);
+    const UINT32 VadFlags = *(UINT32 *)((UINT8 *)Vad + gSicCtx.Offsets.MMVAD_SHORTToVadFlags);
+    const BOOLEAN PrivateMemory = ((VadFlags >> gSicCtx.Offsets.MMVAD_FLAGSPrivateMemoryBitPosition) & 1) == 1;
 
-    if(Vad->FirstPrototypePte == NULL) {
+    if (PrivateMemory)
+    {
         Status = STATUS_SUCCESS;
         goto clean;
     }
 
-    const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | (
-        (ULONG_PTR)Vad->Core.StartingVpnHigh << 32
-        );
+    if (Vad->FirstPrototypePte == NULL)
+    {
+        Status = STATUS_SUCCESS;
+        goto clean;
+    }
 
-    const ULONG_PTR EndingVpn = Vad->Core.EndingVpn | (
-        (ULONG_PTR)Vad->Core.EndingVpnHigh << 32
-        );
+    const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | ((ULONG_PTR)Vad->Core.StartingVpnHigh << 32);
+    const ULONG_PTR EndingVpn = Vad->Core.EndingVpn | ((ULONG_PTR)Vad->Core.EndingVpnHigh << 32);
 
     const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
     const ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
@@ -406,12 +390,8 @@ Return Value:
     VadNode.FirstPrototypePte = Vad->FirstPrototypePte;
 
     BOOLEAN NewElement = FALSE;
-    PSIC_LOOKUP_VAD_NODE InsertedNode = RtlInsertElementGenericTableAvl(
-        WalkVadContext->LookupTable,
-        &VadNode,
-        sizeof(VadNode),
-        &NewElement
-    );
+    PSIC_LOOKUP_VAD_NODE InsertedNode =
+        RtlInsertElementGenericTableAvl(WalkVadContext->LookupTable, &VadNode, sizeof(VadNode), &NewElement);
 
     //
     // If this is an existing node, we simply add the process to the list of
@@ -419,13 +399,11 @@ Return Value:
     // To do that we allocate memory for an entry and push it down the SLIST.
     //
 
-    PSICK_LOOKUP_NODE_OWNER Owner = ExAllocatePoolWithTag(
-        PagedPool,
-        sizeof(SICK_LOOKUP_NODE_OWNER),
-        SIC_MEMORY_TAG_SLIST_ENTRY
-    );
+    PSICK_LOOKUP_NODE_OWNER Owner =
+        ExAllocatePoolWithTag(PagedPool, sizeof(SICK_LOOKUP_NODE_OWNER), SIC_MEMORY_TAG_SLIST_ENTRY);
 
-    if(Owner == NULL) {
+    if (Owner == NULL)
+    {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto clean;
     }
@@ -434,24 +412,15 @@ Return Value:
     Owner->StartingVirtualAddress = StartingVirtualAddress;
     Owner->EndingVirtualAddress = EndingVirtualAddress;
 
-    ExInterlockedPushEntrySList(
-        &InsertedNode->Owners,
-        &Owner->SList,
-        NULL
-    );
+    ExInterlockedPushEntrySList(&InsertedNode->Owners, &Owner->SList, NULL);
 
 clean:
     return Status;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicWalkVadTreeInOrder(
-    _In_ const PMMVAD Root,
-    _In_ SIC_WALK_VAD_ROUTINE Routine,
-    _Inout_opt_ PVOID Context
-)
+_IRQL_requires_same_ NTSTATUS
+SicWalkVadTreeInOrder(_In_ const PMMVAD Root, _In_ SIC_WALK_VAD_ROUTINE Routine, _Inout_opt_ PVOID Context)
 
 /*++
 
@@ -478,10 +447,11 @@ Return Value:
 --*/
 
 {
-    typedef struct _NODE {
+    typedef struct _NODE
+    {
         LIST_ENTRY List;
         PMMVAD Vad;
-    } VAD_NODE, * PVAD_NODE;
+    } VAD_NODE, *PVAD_NODE;
 
     NTSTATUS Status = STATUS_SUCCESS;
     PMMVAD CurrentVad = NULL;
@@ -502,26 +472,23 @@ Return Value:
 
     CurrentVad = Root;
 
-    while(CurrentVad != NULL || !IsListEmpty(&VadNodeStackHead)) {
-
+    while (CurrentVad != NULL || !IsListEmpty(&VadNodeStackHead))
+    {
         //
         // We first go down as deep as possible in the tree using
         // the left child.
         //
 
-        while(CurrentVad != NULL) {
-
+        while (CurrentVad != NULL)
+        {
             //
             // As we go down, we keep track of the nodes in the list.
             //
 
-            PVAD_NODE VisitedVadNode = ExAllocatePoolWithTag(
-                PagedPool,
-                sizeof(VAD_NODE),
-                SIC_MEMORY_TAG
-            );
+            PVAD_NODE VisitedVadNode = ExAllocatePoolWithTag(PagedPool, sizeof(VAD_NODE), SIC_MEMORY_TAG);
 
-            if(VisitedVadNode == NULL) {
+            if (VisitedVadNode == NULL)
+            {
                 Status = STATUS_INSUFFICIENT_RESOURCES;
                 goto clean;
             }
@@ -547,7 +514,8 @@ Return Value:
 
         PVAD_NODE DisplayVadNode = (PVAD_NODE)RemoveHeadList(&VadNodeStackHead);
 
-        if(&DisplayVadNode->List == &VadNodeStackHead) {
+        if (&DisplayVadNode->List == &VadNodeStackHead)
+        {
             break;
         }
 
@@ -556,10 +524,7 @@ Return Value:
         // node.
         //
 
-        Status = Routine(
-            DisplayVadNode->Vad,
-            Context
-        );
+        Status = Routine(DisplayVadNode->Vad, Context);
 
         //
         // Now let's explore its right tree as we have explored the left one already.
@@ -567,10 +532,7 @@ Return Value:
 
         CurrentVad = (PMMVAD)DisplayVadNode->Vad->Core.u.VadNode.Right;
 
-        ExFreePoolWithTag(
-            DisplayVadNode,
-            SIC_MEMORY_TAG
-        );
+        ExFreePoolWithTag(DisplayVadNode, SIC_MEMORY_TAG);
 
         DisplayVadNode = NULL;
 
@@ -578,7 +540,8 @@ Return Value:
         // If the callback fails, we abort the whole thing.
         //
 
-        if(!NT_SUCCESS(Status)) {
+        if (!NT_SUCCESS(Status))
+        {
             goto clean;
         }
     }
@@ -589,22 +552,20 @@ clean:
     // Ensure we have cleaned up every node in the list.
     //
 
-    while(TRUE) {
-
+    while (TRUE)
+    {
         //
         // We pop the nodes one by one to clean them up.
         //
 
         PVAD_NODE VadNode = (PVAD_NODE)RemoveHeadList(&VadNodeStackHead);
 
-        if(&VadNode->List == &VadNodeStackHead) {
+        if (&VadNode->List == &VadNodeStackHead)
+        {
             break;
         }
 
-        ExFreePoolWithTag(
-            VadNode,
-            SIC_MEMORY_TAG
-        );
+        ExFreePoolWithTag(VadNode, SIC_MEMORY_TAG);
 
         VadNode = NULL;
     }
@@ -613,13 +574,8 @@ clean:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-RTL_GENERIC_COMPARE_RESULTS
-SicCompareRoutine(
-    _In_ PRTL_AVL_TABLE Table,
-    _In_ PVOID FirstStruct,
-    _In_ PVOID SecondStruct
-)
+_IRQL_requires_same_ RTL_GENERIC_COMPARE_RESULTS
+SicCompareRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID FirstStruct, _In_ PVOID SecondStruct)
 
 /*++
 
@@ -658,7 +614,8 @@ Return Value:
 
     PAGED_CODE();
 
-    if(Equal) {
+    if (Equal)
+    {
         return GenericEqual;
     }
 
@@ -667,11 +624,8 @@ Return Value:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-PVOID SicAllocateRoutine(
-    _In_ PRTL_AVL_TABLE Table,
-    _In_ ULONG ByteSize
-)
+_IRQL_requires_same_ PVOID
+SicAllocateRoutine(_In_ PRTL_AVL_TABLE Table, _In_ ULONG ByteSize)
 
 /*++
 
@@ -702,13 +656,10 @@ Return Value:
     // Allocate memory for the node.
     //
 
-    AvlNode = ExAllocatePoolWithTag(
-        PagedPool,
-        ByteSize,
-        SIC_MEMORY_TAG_AVL_ENTRY
-    );
+    AvlNode = ExAllocatePoolWithTag(PagedPool, ByteSize, SIC_MEMORY_TAG_AVL_ENTRY);
 
-    if(AvlNode == NULL) {
+    if (AvlNode == NULL)
+    {
         return NULL;
     }
 
@@ -722,9 +673,7 @@ Return Value:
     // '''
     //
 
-    Node = (PSIC_LOOKUP_VAD_NODE)(
-        (ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS)
-        );
+    Node = (PSIC_LOOKUP_VAD_NODE)((ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS));
 
     //
     // Initialize the SLIST of Owners.
@@ -735,11 +684,8 @@ Return Value:
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-VOID SicFreeRoutine(
-    _In_ PRTL_AVL_TABLE Table,
-    _In_ PVOID Buffer
-)
+_IRQL_requires_same_ VOID
+SicFreeRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID Buffer)
 
 /*++
 
@@ -775,30 +721,26 @@ Return Value:
     // '''
     //
 
-    Node = (PSIC_LOOKUP_VAD_NODE)(
-        (ULONG_PTR)Buffer + sizeof(RTL_BALANCED_LINKS)
-        );
+    Node = (PSIC_LOOKUP_VAD_NODE)((ULONG_PTR)Buffer + sizeof(RTL_BALANCED_LINKS));
 
     //
     // Let's clear the Owners SLIST.
     //
 
-    while(TRUE) {
-
+    while (TRUE)
+    {
         //
         // Pop, pop, pop.
         //
 
-        PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(
-            &Node->Owners,
-            NULL
-        );
+        PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(&Node->Owners, NULL);
 
         //
         // All right, the SLIST is empty let's break out of the loop.
         //
 
-        if(Owner == NULL) {
+        if (Owner == NULL)
+        {
             break;
         }
 
@@ -806,10 +748,7 @@ Return Value:
         // Clean-up the memory that we allocated for the SLIST entry.
         //
 
-        ExFreePoolWithTag(
-            Owner,
-            SIC_MEMORY_TAG_SLIST_ENTRY
-        );
+        ExFreePoolWithTag(Owner, SIC_MEMORY_TAG_SLIST_ENTRY);
 
         Owner = NULL;
     }
@@ -824,19 +763,14 @@ Return Value:
     // Free the actual node.
     //
 
-    ExFreePoolWithTag(
-        Buffer,
-        SIC_MEMORY_TAG_AVL_ENTRY
-    );
+    ExFreePoolWithTag(Buffer, SIC_MEMORY_TAG_AVL_ENTRY);
 
     Buffer = NULL;
 }
 
 _IRQL_requires_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicDude(
-)
+_IRQL_requires_same_ NTSTATUS
+SicDude()
 
 /*++
 
@@ -868,13 +802,7 @@ Return Value:
     // Initialize the look-up table.
     //
 
-    RtlInitializeGenericTableAvl(
-        &LookupTable,
-        SicCompareRoutine,
-        SicAllocateRoutine,
-        SicFreeRoutine,
-        NULL
-    );
+    RtlInitializeGenericTableAvl(&LookupTable, SicCompareRoutine, SicAllocateRoutine, SicFreeRoutine, NULL);
 
     WalkVadContext.LookupTable = &LookupTable;
 
@@ -890,7 +818,8 @@ Return Value:
 
     Status = SicGetProcessList(&ProcessList);
 
-    if(!NT_SUCCESS(Status)) {
+    if (!NT_SUCCESS(Status))
+    {
         goto clean;
     }
 
@@ -899,8 +828,8 @@ Return Value:
     //
 
     CurrentProcess = ProcessList;
-    while(CurrentProcess->NextEntryOffset != 0) {
-
+    while (CurrentProcess->NextEntryOffset != 0)
+    {
         PEPROCESS Process = NULL;
 
         //
@@ -914,12 +843,10 @@ Return Value:
         // Reference the process to not have it die under us.
         //
 
-        Status = PsLookupProcessByProcessId(
-            CurrentProcess->UniqueProcessId,
-            &Process
-        );
+        Status = PsLookupProcessByProcessId(CurrentProcess->UniqueProcessId, &Process);
 
-        if(!NT_SUCCESS(Status)) {
+        if (!NT_SUCCESS(Status))
+        {
             goto next;
         }
 
@@ -927,14 +854,11 @@ Return Value:
         // Allocate a node to push it into the list of processes to dereference.
         //
 
-        PSIC_PROCESS_TO_DEREF ProcessToDeref = ExAllocatePoolWithTag(
-            PagedPool,
-            sizeof(SIC_PROCESS_TO_DEREF),
-            SIC_MEMORY_TAG
-        );
+        PSIC_PROCESS_TO_DEREF ProcessToDeref =
+            ExAllocatePoolWithTag(PagedPool, sizeof(SIC_PROCESS_TO_DEREF), SIC_MEMORY_TAG);
 
-        if(ProcessToDeref == NULL) {
-
+        if (ProcessToDeref == NULL)
+        {
             Status = STATUS_INSUFFICIENT_RESOURCES;
 
             //
@@ -972,17 +896,10 @@ Return Value:
         // Grab the VadRoot and walk the tree.
         //
 
-        // ntdll!_EPROCESS
-        //    + 0x658 VadRoot : _RTL_AVL_TREE
-        const UINT32 EprocessToVadRoot = 0x658;
-        const PMMVAD VadRoot = *(PMMVAD*)((ULONG_PTR)Process + EprocessToVadRoot);
+        const PMMVAD VadRoot = *(PMMVAD *)((ULONG_PTR)Process + gSicCtx.Offsets.EPROCESSToVadRoot);
         DebugPrint("  VadRoot: %p\n", VadRoot);
 
-        Status = SicWalkVadTreeInOrder(
-            VadRoot,
-            SicDumpVad,
-            &WalkVadContext
-        );
+        Status = SicWalkVadTreeInOrder(VadRoot, SicDumpVad, &WalkVadContext);
 
     next:
 
@@ -990,9 +907,7 @@ Return Value:
         // We are done with the current process, move to the next.
         //
 
-        CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)(
-            (ULONG_PTR)CurrentProcess + CurrentProcess->NextEntryOffset
-            );
+        CurrentProcess = (PSYSTEM_PROCESS_INFORMATION)((ULONG_PTR)CurrentProcess + CurrentProcess->NextEntryOffset);
     }
 
     //
@@ -1000,47 +915,41 @@ Return Value:
     // to find the entries that have more than one owners.
     //
 
-    for(PSIC_LOOKUP_VAD_NODE Node = RtlEnumerateGenericTableAvl(&LookupTable, TRUE);
-        Node != NULL;
-        Node = RtlEnumerateGenericTableAvl(&LookupTable, FALSE)
-        ) {
-
+    for (PSIC_LOOKUP_VAD_NODE Node = RtlEnumerateGenericTableAvl(&LookupTable, TRUE); Node != NULL;
+         Node = RtlEnumerateGenericTableAvl(&LookupTable, FALSE))
+    {
         //
         // We are interested only in PrototypePTE with more than an owner.
         //
 
         const USHORT NumberOwners = ExQueryDepthSList(&Node->Owners);
-        if(NumberOwners <= 1) {
+        if (NumberOwners <= 1)
+        {
             continue;
         }
 
-        DebugPrint(
-            "PrototypePTE: %p shared with:\n",
-            Node->FirstPrototypePte
-        );
+        DebugPrint("PrototypePTE: %p shared with:\n", Node->FirstPrototypePte);
 
         //
         // Now let's walk the owners one by one.
         //
 
-        while(TRUE) {
-
+        while (TRUE)
+        {
             PUNICODE_STRING OwnerProcessName = NULL;
 
             //
             // Pop, pop, pop.
             //
 
-            PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(
-                &Node->Owners,
-                NULL
-            );
+            PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(&Node->Owners, NULL);
 
             //
             // All right, the SLIST is empty let's break out of the loop.
             //
 
-            if(Owner == NULL) {
+            if (Owner == NULL)
+            {
                 break;
             }
 
@@ -1048,10 +957,7 @@ Return Value:
             // Get the owner process name.
             //
 
-            Status = SicGetProcessName(
-                Owner->Process,
-                &OwnerProcessName
-            );
+            Status = SicGetProcessName(Owner->Process, &OwnerProcessName);
 
             ASSERT(NT_SUCCESS(Status));
 
@@ -1064,17 +970,13 @@ Return Value:
                 Owner->Process,
                 OwnerProcessName,
                 Owner->StartingVirtualAddress,
-                Owner->EndingVirtualAddress
-            );
+                Owner->EndingVirtualAddress);
 
             //
             // Clean-up the memory that we allocated for the SLIST entry.
             //
 
-            ExFreePoolWithTag(
-                Owner,
-                SIC_MEMORY_TAG_SLIST_ENTRY
-            );
+            ExFreePoolWithTag(Owner, SIC_MEMORY_TAG_SLIST_ENTRY);
 
             Owner = NULL;
 
@@ -1082,10 +984,7 @@ Return Value:
             // Clean-up the process name.
             //
 
-            ExFreePoolWithTag(
-                OwnerProcessName,
-                SIC_MEMORY_TAG
-            );
+            ExFreePoolWithTag(OwnerProcessName, SIC_MEMORY_TAG);
 
             OwnerProcessName = NULL;
         }
@@ -1103,15 +1002,13 @@ clean:
     // Dereference the processes we referenced earlier.
     //
 
-    while(!IsListEmpty(&ProcessToDerefListHead)) {
-
+    while (!IsListEmpty(&ProcessToDerefListHead))
+    {
         //
         // Grab an entry off the list.
         //
 
-        PSIC_PROCESS_TO_DEREF ProcessToDeref = (PSIC_PROCESS_TO_DEREF)RemoveHeadList(
-            &ProcessToDerefListHead
-        );
+        PSIC_PROCESS_TO_DEREF ProcessToDeref = (PSIC_PROCESS_TO_DEREF)RemoveHeadList(&ProcessToDerefListHead);
 
         //
         // Dereference the process.
@@ -1123,10 +1020,7 @@ clean:
         // And clean up the memory.
         //
 
-        ExFreePoolWithTag(
-            ProcessToDeref,
-            SIC_MEMORY_TAG
-        );
+        ExFreePoolWithTag(ProcessToDeref, SIC_MEMORY_TAG);
 
         ProcessToDeref = NULL;
     }
@@ -1135,26 +1029,20 @@ clean:
     // Clear the table.
     //
 
-    while(!RtlIsGenericTableEmptyAvl(&LookupTable)) {
-
+    while (!RtlIsGenericTableEmptyAvl(&LookupTable))
+    {
         //
         // Get the entry at index 0.
         //
 
-        PVOID Entry = RtlGetElementGenericTableAvl(
-            &LookupTable,
-            0
-        );
+        PVOID Entry = RtlGetElementGenericTableAvl(&LookupTable, 0);
 
         //
         // And delete it! Note that the SicFreeRoutine is called
         // on every node (and so it will also clean up the Owners).
         //
 
-        RtlDeleteElementGenericTableAvl(
-            &LookupTable,
-            Entry
-        );
+        RtlDeleteElementGenericTableAvl(&LookupTable, Entry);
 
         Entry = NULL;
     }
@@ -1169,12 +1057,9 @@ clean:
     // Don't forget to clean the process list.
     //
 
-    if(ProcessList != NULL) {
-
-        ExFreePoolWithTag(
-            ProcessList,
-            SIC_MEMORY_TAG
-        );
+    if (ProcessList != NULL)
+    {
+        ExFreePoolWithTag(ProcessList, SIC_MEMORY_TAG);
 
         ProcessList = NULL;
     }
@@ -1182,14 +1067,9 @@ clean:
     return Status;
 }
 
-_Function_class_(DRIVER_DISPATCH)
-_IRQL_requires_max_(PASSIVE_LEVEL)
-_IRQL_requires_same_
-NTSTATUS
-SicDispatchDeviceControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _Inout_ PIRP Irp
-)
+_Function_class_(DRIVER_DISPATCH) _IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicDispatchDeviceControl(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 
 /*++
 
@@ -1217,7 +1097,28 @@ Return Value:
 
     PAGED_CODE();
 
-    switch(IoControlCode) {
+    switch (IoControlCode)
+    {
+    case IOCTL_SIC_INIT_CONTEXT: {
+        const PIO_STACK_LOCATION IrpStackLocation = IoGetCurrentIrpStackLocation(Irp);
+        const ULONG InputBufferLength = IrpStackLocation->Parameters.DeviceIoControl.InputBufferLength;
+        const PVOID InputBuffer = Irp->AssociatedIrp.SystemBuffer;
+
+        if (InputBufferLength != sizeof(gSicCtx))
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        memcpy(&gSicCtx, InputBuffer, sizeof(gSicCtx));
+        break;
+    }
+
+    case IOCTL_SIC_ENUM_SHMS: {
+        SicDude();
+        break;
+    }
+
     default: {
         break;
     }
@@ -1238,13 +1139,45 @@ Return Value:
     return Status;
 }
 
-_Function_class_(DRIVER_INITIALIZE)
-_IRQL_requires_same_
-_IRQL_requires_(PASSIVE_LEVEL)
-NTSTATUS DriverEntry(
-    _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-)
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+
+/*++
+
+Routine Description:
+
+    This routine is called by the I/O system when the SIOCTL is opened or
+    closed.
+    No action is performed other than completing the request successfully.
+
+Arguments:
+
+    DeviceObject - a pointer to the object that represents the device
+    that I/O is to be done on.
+
+    Irp - a pointer to the I/O Request Packet for this request.
+
+Return Value:
+
+    NT status code
+--*/
+
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    PAGED_CODE();
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
+}
+
+_Function_class_(DRIVER_INITIALIZE) _IRQL_requires_same_ _IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
 
 /*++
 
@@ -1274,15 +1207,44 @@ Return Value:
 
     PAGED_CODE();
 
-    DriverObject->DriverUnload = SicDriverUnload;
+    UNICODE_STRING NtUnicodeString = RTL_CONSTANT_STRING(SIC_NT_DEVICE_NAME);
+    UNICODE_STRING NtWin32NameString = RTL_CONSTANT_STRING(SIC_DOS_DEVICE_NAME);
+    PDEVICE_OBJECT DeviceObject = NULL;
+    NTSTATUS Status = STATUS_SUCCESS;
 
-    SicDude();
+    Status = IoCreateDevice(
+        DriverObject, 0, &NtUnicodeString, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &DeviceObject);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DebugPrint("Couldn't create the device object\n");
+        return Status;
+    }
+
+    //
+    // Create a symbolic link between our device name  and the Win32 name
+    //
+
+    Status = IoCreateSymbolicLink(&NtWin32NameString, &NtUnicodeString);
+
+    if (!NT_SUCCESS(Status))
+    {
+        //
+        // Delete everything that this routine has allocated.
+        //
+
+        DebugPrint("Couldn't create symbolic link\n");
+        IoDeleteDevice(DeviceObject);
+        return Status;
+    }
 
     //
     // Set-up the Unload / I/O callbacks.
     //
 
-    // DriverObject->DriverUnload = SicDriverUnload;
-    // DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = SicDispatchDeviceControl;
-    return STATUS_FAILED_DRIVER_ENTRY;
+    DriverObject->DriverUnload = SicDriverUnload;
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = SicCreateClose;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = SicCreateClose;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = SicDispatchDeviceControl;
+    return STATUS_SUCCESS;
 }

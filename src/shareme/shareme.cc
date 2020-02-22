@@ -1,6 +1,7 @@
 // Axel '0vercl0k' Souchet - January 23 2020
 #include <windows.h>
 #include <tchar.h>
+#include "..\common\common-user.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -17,48 +18,8 @@ const uint32_t OnePage = 0x1000;
 
 const uint32_t ChildNumber = 5;
 
-//
-// Ghetto version of base::win::ScopedHandle:
-// https://cs.chromium.org/chromium/buildtools/gn/src/base/win/scoped_handle.h
-//
-
-class ScopedHandle {
-    public:
-        explicit ScopedHandle(HANDLE Handle)
-        : handle_(Handle) {
-        }
-
-        //
-        // We explicitely disable copy ctor / assignment operators.
-        //
-
-        //ScopedHandle(ScopedHandle &) = delete;
-        //void operator=(ScopedHandle &) = delete;
-
-        static bool IsHandleValid(const HANDLE Handle) {
-            return Handle != INVALID_HANDLE_VALUE && Handle != nullptr;
-        }
-
-        void Close() {
-            if(IsHandleValid(handle_)) {
-                CloseHandle(handle_);
-                handle_ = INVALID_HANDLE_VALUE;
-            }
-        }
-
-        ~ScopedHandle() {
-            Close();
-        }
-
-        operator HANDLE() const {
-            return handle_;
-        }
-
-    private:
-        HANDLE handle_;
-};
-
-bool SpawnChild(const HANDLE Shm)
+bool
+SpawnChild(const HANDLE Shm)
 
 /*++
 
@@ -101,11 +62,8 @@ Return Value:
     // to CreateProcess another instance of ourselves.
     //
 
-    if(GetModuleFileName(
-        GetModuleHandle(nullptr),
-        Application,
-        NumberOfChars - 1
-    ) == 0) {
+    if (GetModuleFileName(GetModuleHandle(nullptr), Application, NumberOfChars - 1) == 0)
+    {
         _tprintf(_T("Failed to GetModuleFileName, GLE=%d.\n"), GetLastError());
         return false;
     }
@@ -122,13 +80,8 @@ Return Value:
     // https://docs.microsoft.com/en-us/windows/win32/procthread/inheritance
     //
 
-    if(_stprintf_s(
-        CommandLine,
-        NumberOfChars,
-        _T("%s %p"),
-        Application,
-        Shm
-    ) == -1) {
+    if (_stprintf_s(CommandLine, NumberOfChars, _T("%s %p"), Application, Shm) == -1)
+    {
         _tprintf(_T("Failed to _stprintf_s.\n"));
         return false;
     }
@@ -137,18 +90,7 @@ Return Value:
     // Time to create the process!
     //
 
-    bool Success = CreateProcess(
-        Application,
-        CommandLine,
-        nullptr,
-        nullptr,
-        true,
-        0,
-        nullptr,
-        nullptr,
-        &Si,
-        &Pi
-    );
+    bool Success = CreateProcess(Application, CommandLine, nullptr, nullptr, true, 0, nullptr, nullptr, &Si, &Pi);
 
     //
     // Close the handles we don't need.
@@ -159,7 +101,8 @@ Return Value:
     return Success;
 }
 
-PVOID MapShmByHandle(const HANDLE Shm)
+PVOID
+MapShmByHandle(const HANDLE Shm)
 
 /*++
 
@@ -178,20 +121,14 @@ Return Value:
 --*/
 
 {
-
     //
     // Map a view of the shared memory.
     //
 
-    PVOID ViewBaseAddress = MapViewOfFile(
-        Shm,
-        FILE_MAP_WRITE,
-        0,
-        0,
-        OnePage
-    );
+    PVOID ViewBaseAddress = MapViewOfFile(Shm, FILE_MAP_WRITE, 0, 0, OnePage);
 
-    if(ViewBaseAddress == nullptr) {
+    if (ViewBaseAddress == nullptr)
+    {
         _tprintf(_T("Failed to MapViewOfFile, GLE=%d.\n"), GetLastError());
         return nullptr;
     }
@@ -199,7 +136,8 @@ Return Value:
     return ViewBaseAddress;
 }
 
-bool CreateShmChildProcessesAndWait()
+bool
+CreateShmChildProcessesAndWait()
 
 /*++
 
@@ -219,7 +157,6 @@ Return Value:
 --*/
 
 {
-
     //
     // Without a `SecAttributes` the handle cannot
     // be inherited in the child processes, which we need.
@@ -234,16 +171,11 @@ Return Value:
     // Create a pagefile-backed mapping of a page.
     //
 
-    const ScopedHandle Shm(CreateFileMapping(
-        INVALID_HANDLE_VALUE,
-        &SecAttributes,
-        PAGE_READWRITE,
-        0,
-        OnePage,
-        nullptr
-    ));
+    const ScopedHandle Shm(
+        CreateFileMapping(INVALID_HANDLE_VALUE, &SecAttributes, PAGE_READWRITE, 0, OnePage, nullptr));
 
-    if(Shm == nullptr) {
+    if (!Shm.Valid())
+    {
         _tprintf(_T("Failed to CreateFileMapping, GLE=%d.\n"), GetLastError());
         return false;
     }
@@ -254,12 +186,7 @@ Return Value:
     // terminate themselves.
     //
 
-    ScopedHandle Event(CreateEvent(
-        &SecAttributes,
-        true,
-        false,
-        nullptr
-    ));
+    ScopedHandle Event(CreateEvent(&SecAttributes, true, false, nullptr));
 
     //
     // To pass the handle value to the children, we simply use the shared memory that every
@@ -267,8 +194,9 @@ Return Value:
     // value via the command line for example.
     //
 
-    HANDLE *View = (HANDLE*)MapShmByHandle(Shm);
-    if(View == nullptr) {
+    HANDLE *View = (HANDLE *)MapShmByHandle(Shm);
+    if (View == nullptr)
+    {
         _tprintf(_T("Failed to MapShmByHandle.\n"));
         return false;
     }
@@ -279,9 +207,10 @@ Return Value:
     // Create a number of child processes.
     //
 
-    for(uint32_t Idx = 0; Idx < ChildNumber; Idx++) {
-        if(!SpawnChild(Shm)) {
-
+    for (uint32_t Idx = 0; Idx < ChildNumber; Idx++)
+    {
+        if (!SpawnChild(Shm))
+        {
             //
             // If we fail to spawn a child process, let's not forget to signal
             // the event in case we still managed to spawn some child processes.
@@ -311,7 +240,8 @@ Return Value:
     return true;
 }
 
-bool MapShmByNameAndWait(const TCHAR *HandleString)
+bool
+MapShmByNameAndWait(const TCHAR *HandleString)
 
 /*++
 
@@ -332,17 +262,13 @@ Return Value:
 --*/
 
 {
-    ScopedHandle Shm(HANDLE(_tcstoull(
-        HandleString,
-        nullptr,
-        16
-    )));
+    ScopedHandle Shm(HANDLE(_tcstoull(HandleString, nullptr, 16)));
 
     //
     // Map a view of the shared memory section.
     //
 
-    const HANDLE *ViewBaseAddress = (HANDLE*)MapShmByHandle(Shm);
+    const HANDLE *ViewBaseAddress = (HANDLE *)MapShmByHandle(Shm);
 
     //
     // Once we mapped a view in the address space, we don't need the handle anymore.
@@ -350,7 +276,8 @@ Return Value:
 
     Shm.Close();
 
-    if(ViewBaseAddress == nullptr) {
+    if (ViewBaseAddress == nullptr)
+    {
         _tprintf(_T("Failed to MapShmByHandle.\n"));
         return false;
     }
@@ -371,7 +298,8 @@ Return Value:
     return true;
 }
 
-void Usage()
+void
+Usage()
 
 /*++
 
@@ -394,14 +322,16 @@ Return Value:
     _tprintf(_T("shareme.exe <shm handle>\n"));
 }
 
-int _tmain(int argc, TCHAR *argv[]) {
-
+int
+_tmain(int argc, TCHAR *argv[])
+{
     //
     // No arguments are expected for the child creation mode.
     //
 
     const bool Create = argc == 1;
-    if(Create) {
+    if (Create)
+    {
         const bool Success = CreateShmChildProcessesAndWait();
         return Success ? EXIT_SUCCESS : EXIT_FAILURE;
     }
@@ -411,7 +341,8 @@ int _tmain(int argc, TCHAR *argv[]) {
     // to get the handle value passed as a string in the first argument.
     //
 
-    if(argc != 2) {
+    if (argc != 2)
+    {
         Usage();
         return EXIT_FAILURE;
     }

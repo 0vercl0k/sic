@@ -30,3 +30,20 @@
 *.exe
 *.out
 *.app
+
+# inf file
+*.inf
+
+# x86 output
+**/Debug
+**/Release
+
+# x64 output
+**/x64/Debug
+**/x64/Release
+
+# vs directory
+**/.vs
+
+# user files
+*.vcxproj.user

@@ -90,6 +90,8 @@
     <ClCompile Include="sic-drv.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\common\common-user.h" />
+    <ClInclude Include="..\common\common.h" />
     <ClInclude Include="sic-drv.h" />
     <ClInclude Include="undoc.h" />
   </ItemGroup>
