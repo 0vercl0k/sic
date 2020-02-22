@@ -7,8 +7,8 @@
 // Special thanks to @masthoon for being knowledgeable about dbghelp.
 //
 
-BOOL
-GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName, DWORD* FieldOffset)
+bool
+GetFieldOffset(const DWORD64 Base, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset)
 {
     //
     // Allocate a buffer to back the SYMBOL_INFO structure.
@@ -29,10 +29,10 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
     // Retrieve a type index for the type we're after.
     //
 
-    if(!SymGetTypeFromName(GetCurrentProcess(), Base, TypeName, SymbolInfo))
+    if (!SymGetTypeFromName(GetCurrentProcess(), Base, TypeName, SymbolInfo))
     {
-        printf("SymGetTypeFromName failed %d.\n", GetLastError());
-        return FALSE;
+        _tprintf(_T("SymGetTypeFromName failed %d.\n"), GetLastError());
+        return false;
     }
 
     //
@@ -42,10 +42,10 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
 
     const ULONG TypeIndex = SymbolInfo->TypeIndex;
     DWORD ChildrenCount = 0;
-    if(!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex, TI_GET_CHILDRENCOUNT, &ChildrenCount))
+    if (!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex, TI_GET_CHILDRENCOUNT, &ChildrenCount))
     {
-        printf("SymGetTypeInfo failed %d.\n", GetLastError());
-        return FALSE;
+        _tprintf(_T("SymGetTypeInfo failed %d.\n"), GetLastError());
+        return false;
     }
 
     //
@@ -54,7 +54,7 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
 
     auto FindChildrenParamsBacking =
         std::make_unique<UINT8[]>(sizeof(_TI_FINDCHILDREN_PARAMS) + ((ChildrenCount - 1) * sizeof(ULONG)));
-    _TI_FINDCHILDREN_PARAMS* FindChildrenParams = (_TI_FINDCHILDREN_PARAMS*)FindChildrenParamsBacking.get();
+    _TI_FINDCHILDREN_PARAMS *FindChildrenParams = (_TI_FINDCHILDREN_PARAMS *)FindChildrenParamsBacking.get();
 
     //
     // Initialize the structure with the children count.
@@ -66,24 +66,24 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
     // Get all the children ids.
     //
 
-    if(!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex, TI_FINDCHILDREN, FindChildrenParams))
+    if (!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex, TI_FINDCHILDREN, FindChildrenParams))
     {
-        printf("SymGetTypeInfo2 failed %d.\n", GetLastError());
-        return FALSE;
+        _tprintf(_T("SymGetTypeInfo2 failed %d.\n"), GetLastError());
+        return false;
     }
 
     //
     // Now that we have all the ids, we can walk them and find the one that matches the field we're looking for.
     //
 
-    for(DWORD ChildIdx = 0; ChildIdx < ChildrenCount; ChildIdx++)
+    for (DWORD ChildIdx = 0; ChildIdx < ChildrenCount; ChildIdx++)
     {
         //
         // Grab the child name.
         //
 
         const ULONG ChildId = FindChildrenParams->ChildId[ChildIdx];
-        WCHAR* ChildName = nullptr;
+        WCHAR *ChildName = nullptr;
         SymGetTypeInfo(GetCurrentProcess(), Base, ChildId, TI_GET_SYMNAME, &ChildName);
 
         //
@@ -98,7 +98,7 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
         //
 
         BOOL Found = FALSE;
-        if(_tcscmp(ChildName, FieldName) == 0)
+        if (_tcscmp(ChildName, FieldName) == 0)
         {
             //
             // If we have found the field, now we need to find its bit position if it's a normal field,
@@ -122,7 +122,7 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
         // We can now break out of the loop if we have what we came looking for.
         //
 
-        if(Found)
+        if (Found)
         {
             break;
         }
@@ -132,21 +132,21 @@ GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName
     // Yay we're done!
     //
 
-    return TRUE;
+    return true;
 }
 
-BOOL
-GetFieldOffsetFromModule(const TCHAR* ModulePath, const TCHAR* TypeName, const TCHAR* FieldName, DWORD* FieldOffset)
+bool
+GetFieldOffsetFromModule(const TCHAR *ModulePath, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset)
 {
     //
     // Load the symbol table for the module we are interested in.
     //
 
     const DWORD64 Base = SymLoadModuleEx(GetCurrentProcess(), nullptr, ModulePath, nullptr, 0, 0, nullptr, 0);
-    if(Base == 0)
+    if (Base == 0)
     {
-        printf("SymLoadModuleEx failed.\n");
-        return FALSE;
+        _tprintf(_T("SymLoadModuleEx failed.\n"));
+        return false;
     }
 
     //

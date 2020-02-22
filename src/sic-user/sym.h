@@ -14,7 +14,7 @@ struct ScopedSymInit
     explicit ScopedSymInit(const DWORD Opts)
     {
         SymSetOptions(Opts);
-        if(!SymInitialize(GetCurrentProcess(), nullptr, false))
+        if (!SymInitialize(GetCurrentProcess(), nullptr, false))
         {
             _tprintf(_T("SymInitialize failed.\n"));
             ExitProcess(0);
@@ -31,8 +31,8 @@ struct ScopedSymInit
     }
 };
 
-BOOL
-GetFieldOffset(const DWORD64 Base, const TCHAR* TypeName, const TCHAR* FieldName, DWORD* FieldOffset);
+bool
+GetFieldOffset(const DWORD64 Base, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset);
 
-BOOL
-GetFieldOffsetFromModule(const TCHAR* ModulePath, const TCHAR* TypeName, const TCHAR* FieldName, DWORD* FieldOffset);
+bool
+GetFieldOffsetFromModule(const TCHAR *ModulePath, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset);
