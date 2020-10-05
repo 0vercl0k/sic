@@ -394,13 +394,12 @@ Return Value:
         RtlInsertElementGenericTableAvl(WalkVadContext->LookupTable, &VadNode, sizeof(VadNode), &NewElement);
 
     //
-    // If this is an existing node, we simply add the process to the list of
-    // owners of this PrototypePTE.
+    // Simply add the process to the list of owners of this PrototypePTE.
     // To do that we allocate memory for an entry and push it down the SLIST.
     //
 
     PSICK_LOOKUP_NODE_OWNER Owner =
-        ExAllocatePoolWithTag(PagedPool, sizeof(SICK_LOOKUP_NODE_OWNER), SIC_MEMORY_TAG_SLIST_ENTRY);
+        ExAllocatePoolWithTag(PagedPool, sizeof(SICK_LOOKUP_NODE_OWNER), SIC_MEMORY_TAG_LIST_ENTRY);
 
     if (Owner == NULL)
     {
@@ -679,7 +678,7 @@ Return Value:
     // Initialize the SLIST of Owners.
     //
 
-    InitializeSListHead(&Node->Owners);
+    InitializeListHead(&Node->Owners);
     return AvlNode;
 }
 
@@ -730,25 +729,26 @@ Return Value:
     while (TRUE)
     {
         //
-        // Pop, pop, pop.
+        // Get rid of the first entry.
         //
 
-        PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(&Node->Owners, NULL);
+        PLIST_ENTRY OwnerListEntry = RemoveHeadList(&Node->Owners);
 
         //
-        // All right, the SLIST is empty let's break out of the loop.
+        // If the list is empty, we are done!
         //
 
-        if (Owner == NULL)
+        if (OwnerListEntry == &Node->Owners)
         {
             break;
         }
 
         //
-        // Clean-up the memory that we allocated for the SLIST entry.
+        // Clean-up the memory that we allocated for the owner entry.
         //
 
-        ExFreePoolWithTag(Owner, SIC_MEMORY_TAG_SLIST_ENTRY);
+        PSICK_LOOKUP_NODE_OWNER Owner = CONTAINING_RECORD(OwnerListEntry, SICK_LOOKUP_NODE_OWNER, List);
+        ExFreePoolWithTag(Owner, SIC_MEMORY_TAG_LIST_ENTRY);
 
         Owner = NULL;
     }
@@ -757,7 +757,7 @@ Return Value:
     // The list should be empty now.
     //
 
-    NT_ASSERT(ExQueryDepthSList(&Node->Owners) == 0);
+    NT_ASSERT(IsListEmpty(&Node->Owners));
 
     //
     // Free the actual node.
@@ -913,7 +913,11 @@ Return Value:
     //
     // Once we walked all the processes, let's walk the lookup table
     // to find the entries that have more than one owners.
+    // At the same time we calculate the amount of memory we'll need to send the results back to usermode.
     //
+
+    ULONG NumberShared = 0;
+    ULONG NumberOwners = 0;
 
     for (PSIC_LOOKUP_VAD_NODE Node = RtlEnumerateGenericTableAvl(&LookupTable, TRUE); Node != NULL;
          Node = RtlEnumerateGenericTableAvl(&LookupTable, FALSE))
@@ -922,36 +926,33 @@ Return Value:
         // We are interested only in PrototypePTE with more than an owner.
         //
 
-        const USHORT NumberOwners = ExQueryDepthSList(&Node->Owners);
-        if (NumberOwners <= 1)
+        if (Node->Owners.Blink == Node->Owners.Flink)
         {
             continue;
         }
 
-        DebugPrint("PrototypePTE: %p shared with:\n", Node->FirstPrototypePte);
-
         //
-        // Now let's walk the owners one by one.
+        // Keep track of the number of entry we are interested about.
         //
 
-        while (TRUE)
+        NumberShared++;
+
+        //
+        // Let's walk the owners now.
+        //
+
+        const PLIST_ENTRY Head = &Node->Owners;
+        PLIST_ENTRY Current = Node->Owners.Flink;
+        while (Current != Head)
         {
             PUNICODE_STRING OwnerProcessName = NULL;
 
             //
-            // Pop, pop, pop.
+            // Get the owner node.
             //
 
-            PSICK_LOOKUP_NODE_OWNER Owner = (PSICK_LOOKUP_NODE_OWNER)ExInterlockedPopEntrySList(&Node->Owners, NULL);
-
-            //
-            // All right, the SLIST is empty let's break out of the loop.
-            //
-
-            if (Owner == NULL)
-            {
-                break;
-            }
+            PSICK_LOOKUP_NODE_OWNER Owner = CONTAINING_RECORD(Current, SICK_LOOKUP_NODE_OWNER, List);
+            NT_ASSERT(Owner != NULL);
 
             //
             // Get the owner process name.
@@ -959,26 +960,23 @@ Return Value:
 
             Status = SicGetProcessName(Owner->Process, &OwnerProcessName);
 
-            ASSERT(NT_SUCCESS(Status));
+            if (NT_SUCCESS(Status))
+            {
+                //
+                // Display the owning process as well as the virtual addresses of the mapping.
+                //
 
-            //
-            // Display the owning process as well as the virtual addresses of the mapping.
-            //
-
-            DebugPrint(
-                "  EPROCESS %p (%wZ) at %zx-%zx\n",
-                Owner->Process,
-                OwnerProcessName,
-                Owner->StartingVirtualAddress,
-                Owner->EndingVirtualAddress);
-
-            //
-            // Clean-up the memory that we allocated for the SLIST entry.
-            //
-
-            ExFreePoolWithTag(Owner, SIC_MEMORY_TAG_SLIST_ENTRY);
-
-            Owner = NULL;
+                DebugPrint(
+                    "  EPROCESS %p (%wZ) at %zx-%zx\n",
+                    Owner->Process,
+                    OwnerProcessName,
+                    Owner->StartingVirtualAddress,
+                    Owner->EndingVirtualAddress);
+            }
+            else
+            {
+                DebugPrint("SicGetProcessName failed with %x\n", Status);
+            }
 
             //
             // Clean-up the process name.
@@ -987,14 +985,17 @@ Return Value:
             ExFreePoolWithTag(OwnerProcessName, SIC_MEMORY_TAG);
 
             OwnerProcessName = NULL;
+
+            //
+            // Move to the next.
+            //
+
+            Current = Current->Flink;
         }
-
-        //
-        // The list should be empty now.
-        //
-
-        NT_ASSERT(ExQueryDepthSList(&Node->Owners) == 0);
     }
+
+    //
+    // We know the amount of memory we need
 
 clean:
 
@@ -1111,11 +1112,16 @@ Return Value:
         }
 
         memcpy(&gSicCtx, InputBuffer, sizeof(gSicCtx));
+        Status = STATUS_SUCCESS;
         break;
     }
 
     case IOCTL_SIC_ENUM_SHMS: {
-        SicDude();
+        const PIO_STACK_LOCATION IrpStackLocation = IoGetCurrentIrpStackLocation(Irp);
+        const ULONG OutputBufferLength = IrpStackLocation->Parameters.DeviceIoControl.OutputBufferLength;
+        const PVOID OutputBuffer = Irp->AssociatedIrp.SystemBuffer;
+
+        Status = SicDude(OutputBuffer, OutputBufferLength);
         break;
     }
 
@@ -1132,7 +1138,7 @@ Return Value:
     Irp->IoStatus.Information = 0;
 
     //
-    // As well as completing it!
+    // And time to complete the IRP!
     //
 
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -1217,7 +1223,7 @@ Return Value:
 
     if (!NT_SUCCESS(Status))
     {
-        DebugPrint("Couldn't create the device object\n");
+        DebugPrint("IoCreateDevice failed\n");
         return Status;
     }
 
@@ -1233,7 +1239,7 @@ Return Value:
         // Delete everything that this routine has allocated.
         //
 
-        DebugPrint("Couldn't create symbolic link\n");
+        DebugPrint("IoCreateSymbolicLink failed\n");
         IoDeleteDevice(DeviceObject);
         return Status;
     }

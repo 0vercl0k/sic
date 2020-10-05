@@ -10,32 +10,32 @@
 
 class ScopedHandle
 {
+private:
+    HANDLE Handle_;
+
 public:
-    explicit ScopedHandle(HANDLE Handle) : handle_(Handle) {}
+    explicit ScopedHandle(HANDLE Handle) : Handle_(Handle) {}
+    ~ScopedHandle() { Close(); }
 
     //
-    // We explicitely disable copy ctor / assignment operators.
+    // Rule of three.
     //
 
-    // ScopedHandle(ScopedHandle &) = delete;
-    // void operator=(ScopedHandle &) = delete;
+    ScopedHandle(const ScopedHandle &) = delete;
+    ScopedHandle &operator=(const ScopedHandle &) = delete;
 
     static bool IsHandleValid(const HANDLE Handle) { return Handle != INVALID_HANDLE_VALUE && Handle != nullptr; }
 
     void Close()
     {
-        if (IsHandleValid(handle_))
+        if (IsHandleValid(Handle_))
         {
-            CloseHandle(handle_);
-            handle_ = INVALID_HANDLE_VALUE;
+            CloseHandle(Handle_);
+            Handle_ = INVALID_HANDLE_VALUE;
         }
     }
 
-    bool Valid() const { return IsHandleValid(handle_); }
-    ~ScopedHandle() { Close(); }
+    bool Valid() const { return IsHandleValid(Handle_); }
 
-    operator HANDLE() const { return handle_; }
-
-private:
-    HANDLE handle_;
+    operator HANDLE() const { return Handle_; }
 };
