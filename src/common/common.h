@@ -12,17 +12,17 @@
 
 typedef struct _SIC_OFFSETS
 {
-    DWORD EPROCESSToVadRoot;
-    DWORD MMVAD_SHORTToVadFlags;
-    DWORD MMVAD_FLAGSPrivateMemoryBitPosition;
+    DWORD32 EPROCESSToVadRoot;
+    DWORD32 MMVAD_SHORTToVadFlags;
+    DWORD32 MMVAD_FLAGSPrivateMemoryBitPosition;
 } SIC_OFFSETS, *PSIC_OFFSETS;
 
 typedef struct _SIC_SHARED_MEMORY_OWNER_ENTRY
 {
-    DWORD Pid;
-    ULONG_PTR PEPROCESS;
-    ULONG_PTR StartingVirtualAddress;
-    ULONG_PTR EndingVirtualAddress
+    DWORD32 Pid;
+    DWORD64 PEPROCESS;
+    DWORD64 StartingVirtualAddress;
+    DWORD64 EndingVirtualAddress;
 } SIC_SHARED_MEMORY_OWNER_ENTRY;
 
 typedef struct _SIC_SHARED_MEMORY_OWNER_ENTRIES
@@ -33,7 +33,7 @@ typedef struct _SIC_SHARED_MEMORY_OWNER_ENTRIES
 
 typedef struct _SIC_SHARED_MEMORY_ENTRY
 {
-    PVOID PrototypePTE;
+    DWORD64 PrototypePTE;
     SIC_SHARED_MEMORY_OWNER_ENTRIES OwnerEnties;
 } SIC_SHARED_MEMORY_ENTRY;
 

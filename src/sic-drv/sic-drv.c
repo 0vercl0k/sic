@@ -395,7 +395,7 @@ Return Value:
 
     //
     // Simply add the process to the list of owners of this PrototypePTE.
-    // To do that we allocate memory for an entry and push it down the SLIST.
+    // To do that we allocate memory for an entry and push it down the list.
     //
 
     PSICK_LOOKUP_NODE_OWNER Owner =
@@ -411,7 +411,7 @@ Return Value:
     Owner->StartingVirtualAddress = StartingVirtualAddress;
     Owner->EndingVirtualAddress = EndingVirtualAddress;
 
-    ExInterlockedPushEntrySList(&InsertedNode->Owners, &Owner->SList, NULL);
+    InsertHeadList(&InsertedNode->Owners, &Owner->List);
 
 clean:
     return Status;
@@ -557,13 +557,14 @@ clean:
         // We pop the nodes one by one to clean them up.
         //
 
-        PVAD_NODE VadNode = (PVAD_NODE)RemoveHeadList(&VadNodeStackHead);
+        PLIST_ENTRY VadNodeEntry = RemoveHeadList(&VadNodeStackHead);
 
-        if (&VadNode->List == &VadNodeStackHead)
+        if (VadNodeEntry == &VadNodeStackHead)
         {
             break;
         }
 
+        PVAD_NODE VadNode = CONTAINING_RECORD(VadNodeEntry, VAD_NODE, List);
         ExFreePoolWithTag(VadNode, SIC_MEMORY_TAG);
 
         VadNode = NULL;
@@ -675,7 +676,7 @@ Return Value:
     Node = (PSIC_LOOKUP_VAD_NODE)((ULONG_PTR)AvlNode + sizeof(RTL_BALANCED_LINKS));
 
     //
-    // Initialize the SLIST of Owners.
+    // Initialize the list of Owners.
     //
 
     InitializeListHead(&Node->Owners);

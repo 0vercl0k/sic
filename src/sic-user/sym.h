@@ -1,38 +1,31 @@
 // Axel '0vercl0k' Souchet - February 19 2020
 #pragma once
 #include <windows.h>
-#ifdef UNICODE
-#    define DBGHELP_TRANSLATE_TCHAR
-#endif
-#include <dbghelp.h>
-#include <tchar.h>
 
 #include <cstdio>
+#include <dbghelp.h>
 
-struct ScopedSymInit
-{
-    explicit ScopedSymInit(const DWORD Opts)
-    {
-        SymSetOptions(Opts);
-        if (!SymInitialize(GetCurrentProcess(), nullptr, false))
-        {
-            _tprintf(_T("SymInitialize failed.\n"));
-            ExitProcess(0);
-        }
+struct ScopedSymInit {
+  explicit ScopedSymInit(const DWORD Opts) {
+    SymSetOptions(Opts);
+    if (!SymInitialize(GetCurrentProcess(), nullptr, false)) {
+      printf("SymInitialize failed.\n");
+      ExitProcess(0);
     }
+  }
 
-    ~ScopedSymInit()
-    {
-        //
-        // Don't forget to uninitialize the sym subsystem when we're done with it.
-        //
+  ~ScopedSymInit() {
+    //
+    // Don't forget to uninitialize the sym subsystem when we're done with it.
+    //
 
-        SymCleanup(GetCurrentProcess());
-    }
+    SymCleanup(GetCurrentProcess());
+  }
 };
 
-bool
-GetFieldOffset(const DWORD64 Base, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset);
+bool GetFieldOffset(const DWORD64 Base, const wchar_t *TypeName,
+                    const wchar_t *FieldName, DWORD32 *FieldOffset);
 
-bool
-GetFieldOffsetFromModule(const TCHAR *ModulePath, const TCHAR *TypeName, const TCHAR *FieldName, DWORD *FieldOffset);
+bool GetFieldOffsetFromModule(const wchar_t *ModulePath,
+                              const wchar_t *TypeName, const wchar_t *FieldName,
+                              DWORD32 *FieldOffset);

@@ -14,7 +14,7 @@ private:
     HANDLE Handle_;
 
 public:
-    explicit ScopedHandle(HANDLE Handle) : Handle_(Handle) {}
+    explicit ScopedHandle(const HANDLE Handle) : Handle_(Handle) {}
     ~ScopedHandle() { Close(); }
 
     //
