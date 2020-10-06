@@ -3,8 +3,10 @@
 #include "..\common\common.h"
 #include "install.h"
 #include "sym.h"
+#include "utils.h"
 #include <cstdio>
 #include <filesystem>
+#include <unordered_map>
 #include <windows.h>
 
 #if defined(__i386__) || defined(_M_IX86)
@@ -21,99 +23,6 @@ const char *ServiceName = "sic";
 const char *ServiceDisplayName = "Sharing Is Caring Driver";
 const char *ServiceFilename = "sic-drv.sys";
 const char *DeviceName = R"(\\.\)" SIC_DEVICE_NAME;
-
-#if 0
-void SicGetProcessList(PSYSTEM_PROCESS_INFORMATION *ProcessList)
-
-{
-  const UINT32 MaxAttempts = 10;
-  NTSTATUS Status = STATUS_SUCCESS;
-
-  PAGED_CODE();
-
-  //
-  // Initialize the output buffer to NULL.
-  //
-
-  *ProcessList = NULL;
-
-  //
-  // If we didn't receive a ProcessList, we fail the call as we
-  // expect one.
-  //
-
-  if (!ARGUMENT_PRESENT(ProcessList)) {
-    Status = STATUS_INVALID_PARAMETER;
-    goto clean;
-  }
-
-  //
-  // Try out to get a process list in a maximum number of attempts.
-  // We do this because we can encounter racy behavior where the world
-  // changes in between the two ZwQuerySystemInformation.. sigh.
-  //
-
-  for (UINT32 Attempt = 0; Attempt < MaxAttempts; Attempt++) {
-    ULONG ReturnLength = 0;
-    PVOID LocalProcessList = NULL;
-
-    //
-    // How much space do we need?
-    //
-
-    Status = ZwQuerySystemInformation(SystemProcessInformation, NULL, 0,
-                                      &ReturnLength);
-
-    //
-    // Allocate memory to receive the process list.
-    //
-
-    LocalProcessList =
-        ExAllocatePoolZero(PagedPool, ReturnLength, SIC_MEMORY_TAG);
-
-    if (LocalProcessList == NULL) {
-      Status = STATUS_INSUFFICIENT_RESOURCES;
-      goto clean;
-    }
-
-    //
-    // Get a list of the processes running on the system.
-    //
-
-    Status =
-        ZwQuerySystemInformation(SystemProcessInformation, LocalProcessList,
-                                 ReturnLength, &ReturnLength);
-
-    //
-    // If we fail, let's clean up behind ourselves, and give it another try!
-    //
-
-    if (!NT_SUCCESS(Status)) {
-      ExFreePoolWithTag(LocalProcessList, SIC_MEMORY_TAG);
-
-      LocalProcessList = NULL;
-      continue;
-    }
-
-    //
-    // If we make it here, it means that we have our list and we are done.
-    //
-
-    *ProcessList = LocalProcessList;
-
-    LocalProcessList = NULL;
-    break;
-  }
-
-clean:
-
-  //
-  // If we managed to get the list, it's all good otherwise it's a failure.
-  //
-
-  return Status;
-}
-#endif
 
 int main() {
   //
@@ -291,6 +200,16 @@ int main() {
   }
 
   //
+  // Grab the process list.
+  //
+
+  const auto Processes = GetProcessList();
+  if (Processes.size() == 0) {
+    printf("GetProcessList failed\n");
+    return EXIT_FAILURE;
+  }
+
+  //
   // Walk the buffer.
   //
 
@@ -316,8 +235,14 @@ int main() {
       // Print out the information regarding the owner.
       //
 
-      printf("  Owner: %016llx at %016llx-%016llx\n", Owner->Process,
-             Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
+      const wchar_t *ProcessName =
+          Processes.contains(Owner->Pid)
+              ? (wchar_t *)Processes.at(Owner->Pid).c_str()
+              : L"Unknown";
+
+      printf("  Owner: %016llx (%ws) at %016llx-%016llx\n", Owner->Process,
+             ProcessName, Owner->StartingVirtualAddress,
+             Owner->EndingVirtualAddress);
 
       //
       // Go to the next owner.
