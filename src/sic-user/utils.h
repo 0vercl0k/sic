@@ -4,4 +4,4 @@
 #include <string>
 #include <unordered_map>
 
-std::unordered_map<uintptr_t, std::u16string> GetProcessList();
+std::unordered_map<uintptr_t, std::string> GetProcessList();

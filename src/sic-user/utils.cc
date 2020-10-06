@@ -17,7 +17,7 @@ enum class SYSTEM_INFORMATION_CLASS : uint32_t {
 struct UNICODE_STRING {
   uint16_t Length;
   uint16_t MaximumLength;
-  char16_t *Buffer;
+  wchar_t *Buffer;
 };
 
 using PUNICODE_STRING = UNICODE_STRING *;
@@ -46,9 +46,9 @@ extern "C" NTSYSCALLAPI NTSTATUS NTAPI ZwQuerySystemInformation(
 
 bool NT_SUCCESS(const NTSTATUS Status) { return Status >= 0; }
 
-std::unordered_map<uintptr_t, std::u16string> GetProcessList() {
+std::unordered_map<uintptr_t, std::string> GetProcessList() {
   const uint32_t MaxAttempts = 10;
-  std::unordered_map<uintptr_t, std::u16string> Processes;
+  std::unordered_map<uintptr_t, std::string> Processes;
 
   //
   // Try out to get a process list in a maximum number of attempts.
@@ -112,9 +112,13 @@ std::unordered_map<uintptr_t, std::u16string> GetProcessList() {
     // Check if we have a valid pointer for the name.
     //
 
-    const auto ImageName = ProcessList->ImageName.Buffer;
-    if (ImageName) {
-      Processes.emplace(ProcessList->UniqueProcessId, ImageName);
+    const auto ImageNameW = ProcessList->ImageName.Buffer;
+    if (ImageNameW) {
+      const uint16_t ImageNameWLength = ProcessList->ImageName.Length / 2;
+      std::string ImageNameA(ImageNameWLength, '\0');
+      WideCharToMultiByte(CP_ACP, 0, ImageNameW, ImageNameWLength,
+                          ImageNameA.data(), int(ImageNameA.length()), 0, 0);
+      Processes.emplace(ProcessList->UniqueProcessId, ImageNameA);
     }
 
     //

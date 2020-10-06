@@ -230,14 +230,10 @@ int main(int argc, char *argv[]) {
   // Walk the buffer to create various lookup tables.
   //
 
-  using Pte_t = uint64_t;
-  using Pid_t = uintptr_t;
-  std::unordered_map<Pte_t, std::vector<PSIC_SHARED_MEMORY_OWNER_ENTRY>>
-      PteToOwners;
-  std::unordered_map<Pid_t, std::vector<PSIC_SHM_ENTRY>> NameToMappings;
+  std::vector<PSIC_SHM_ENTRY> ShmsToDisplay;
 
   //
-  // Start by walking the SHMs..
+  // Let's start by walking the SHMs..
   //
 
   const auto Shms = PSIC_SHMS(Buffer.get());
@@ -249,34 +245,24 @@ int main(int argc, char *argv[]) {
     // Then, walk the owners..
     //
 
-    std::vector<PSIC_SHARED_MEMORY_OWNER_ENTRY> Owners;
     auto Owner = &Shm->Owners[0];
+    bool ToAdd = true;
     for (uint64_t NumberOwners = 0; NumberOwners < Shm->NumberOwners;
          NumberOwners++) {
 
       //
-      // If we have a PID for it, we feed it into our lookups.
+      // If we have a filter, then let's see if we have a match.
       //
 
-      if (Processes.contains(Owner->Pid)) {
+      if (Opts.ProcessName != "" && Processes.contains(Owner->Pid)) {
 
         //
-        // Default construct the entry if it doesn't exist yet, or do nothing.
+        // If we have a match, then feed it into the to display list.
         //
 
-        NameToMappings.try_emplace(Owner->Pid, std::vector<PSIC_SHM_ENTRY>());
-
-        //
-        // Emplace back the pointer.
-        //
-
-        NameToMappings.at(Owner->Pid).emplace_back(Shm);
-
-        //
-        // Keep track of this owner.
-        //
-
-        Owners.emplace_back(Owner);
+        const std::string &CurrentProcessName = Processes.at(Owner->Pid);
+        ToAdd = CurrentProcessName.find(Opts.ProcessName) !=
+                CurrentProcessName.npos;
       }
 
       //
@@ -287,42 +273,50 @@ int main(int argc, char *argv[]) {
     }
 
     //
+    // If we selected this shm, let's feed it into the list.
+    //
+
+    if (ToAdd) {
+      ShmsToDisplay.emplace_back(Shm);
+    }
+
+    //
     // Go to the next mapping.
     //
 
     Shm = PSIC_SHM_ENTRY(Owner);
-    PteToOwners.emplace(Shm->PrototypePTE, Owners);
   }
 
   //
   // Do the display now that we have lookups.
   //
 
-  for (const auto &[Pte, Owners] : PteToOwners) {
+  for (const auto &ShmToDisplay : ShmsToDisplay) {
 
     //
     // Print out the information regarding the mapping.
     //
 
-    printf("ProtoPTE: %016llx\n", Pte);
+    printf("ProtoPTE: %016llx\n", ShmToDisplay->PrototypePTE);
 
     //
     // Iterate through the owners of the mapping.
     //
 
-    for (const auto Owner : Owners) {
+    const auto Owners = ShmToDisplay->Owners;
+    for (uint64_t Idx = 0; Idx < ShmToDisplay->NumberOwners; Idx++) {
 
       //
       // Print out the information regarding the owner.
       //
 
-      const wchar_t *ProcessName =
-          Processes.contains(Owner->Pid)
-              ? (wchar_t *)Processes.at(Owner->Pid).c_str()
-              : L"Unknown";
+      const auto Owner = &Owners[Idx];
+      const char *ProcessName = Processes.contains(Owner->Pid)
+                                    ? Processes.at(Owner->Pid).c_str()
+                                    : nullptr;
 
-      printf("  Name: %ws (PID: %lld, EPROCESS: %016llx) at %016llx-%016llx\n",
-             ProcessName, Owner->Pid, Owner->Process,
+      printf("  Name: %s (PID: %lld, EPROCESS: %016llx) at %016llx-%016llx\n",
+             ProcessName, Owners->Pid, Owner->Process,
              Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
     }
   }
