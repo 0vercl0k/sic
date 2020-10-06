@@ -303,20 +303,17 @@ int main(int argc, char *argv[]) {
     // Iterate through the owners of the mapping.
     //
 
-    const auto Owners = ShmToDisplay->Owners;
     for (uint64_t Idx = 0; Idx < ShmToDisplay->NumberOwners; Idx++) {
 
       //
       // Print out the information regarding the owner.
       //
 
-      const auto Owner = &Owners[Idx];
-      const char *ProcessName = Processes.contains(Owner->Pid)
-                                    ? Processes.at(Owner->Pid).c_str()
-                                    : nullptr;
+      const auto Owner = &ShmToDisplay->Owners[Idx];
+      const std::string &ProcessName = Processes.at(Owner->Pid);
 
       printf("  Name: %s (PID: %lld, EPROCESS: %016llx) at %016llx-%016llx\n",
-             ProcessName, Owners->Pid, Owner->Process,
+             ProcessName.c_str(), Owner->Pid, Owner->Process,
              Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
     }
   }
