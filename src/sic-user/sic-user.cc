@@ -17,7 +17,31 @@
 
 namespace fs = std::filesystem;
 
+const char *ServiceName = "sic";
+const char *ServiceDisplayName = "Sharing Is Caring Driver";
+const char *ServiceFilename = "sic-drv.sys";
+
+template <typename ExitFunctionTy> class ScopeExit_t {
+  ExitFunctionTy ExitFunction_;
+
+public:
+  explicit ScopeExit_t(ExitFunctionTy &&ExitFunction)
+      : ExitFunction_(ExitFunction) {}
+  ~ScopeExit_t() { ExitFunction_(); }
+  ScopeExit_t(const ScopeExit_t &) = delete;
+  ScopeExit_t &operator=(const ScopeExit_t &) = delete;
+};
+
 int main() {
+  //
+  // Always stop and remove the driver on exit.
+  //
+
+  const auto OnExit = ScopeExit_t([&]() {
+    printf("Stopping the driver: %d\n", StopDriver(ServiceName));
+    printf("Removing the driver: %d\n", RemoveDriver(ServiceName));
+  });
+
   //
   // Ensure that we both have dbghelp.dll and symsrv.dll in the current
   // directory otherwise things don't work. cf
@@ -116,10 +140,6 @@ int main() {
   // Install the driver.
   //
 
-  const char *ServiceName = "sic";
-  const char *ServiceDisplayName = "Sharing Is Caring Driver";
-  const char *ServiceFilename = "sic-drv.sys";
-
   if (!InstallDriver(ServiceName, ServiceDisplayName, ServiceFilename)) {
     printf(
         "InstallDriver failed; are you running this from an admin prompt?\n");
@@ -157,38 +177,38 @@ int main() {
                        sizeof(SicOffsets), nullptr, 0, &BytesReturned,
                        nullptr)) {
     printf("IOCTL_SIC_INIT_CONTEXT failed\n");
+    return EXIT_FAILURE;
   }
 
   DWORD64 Size = 0;
   if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS_SIZE, nullptr, 0, &Size,
                        sizeof(Size), &BytesReturned, nullptr)) {
     printf("IOCTL_SIC_GET_SHMS_SIZE failed\n");
+    return EXIT_FAILURE;
   }
 
   auto Buffer = std::make_unique<uint8_t[]>(Size);
   if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS, nullptr, 0, Buffer.get(),
                        DWORD(Size), &BytesReturned, nullptr)) {
     printf("IOCTL_SIC_GET_SHMS failed\n");
-  } else {
-    const auto Shms = PSIC_SHMS(Buffer.get());
-    PSIC_SHM_ENTRY Shm = &Shms->Shms[0];
-    for (DWORD64 NumberSharedMemory = 0;
-         NumberSharedMemory < Shms->NumberSharedMemory; NumberSharedMemory++) {
-      printf("SHM: %016llx\n", Shm->PrototypePTE);
-      PSIC_SHARED_MEMORY_OWNER_ENTRY Owner = &Shm->Owners[0];
-      for (DWORD64 NumberOwners = 0; NumberOwners < Shm->NumberOwners;
-           NumberOwners++) {
-        printf("  Owner: %016llx at %016llx-%016llx\n", Owner->Process,
-               Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
-        Owner++;
-      }
-      Shm = PSIC_SHM_ENTRY(Owner);
+    return EXIT_FAILURE;
+  }
+
+  const auto Shms = PSIC_SHMS(Buffer.get());
+  PSIC_SHM_ENTRY Shm = &Shms->Shms[0];
+  for (DWORD64 NumberSharedMemory = 0;
+       NumberSharedMemory < Shms->NumberSharedMemory; NumberSharedMemory++) {
+    printf("SHM: %016llx\n", Shm->PrototypePTE);
+    PSIC_SHARED_MEMORY_OWNER_ENTRY Owner = &Shm->Owners[0];
+    for (DWORD64 NumberOwners = 0; NumberOwners < Shm->NumberOwners;
+         NumberOwners++) {
+      printf("  Owner: %016llx at %016llx-%016llx\n", Owner->Process,
+             Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
+      Owner++;
     }
+    Shm = PSIC_SHM_ENTRY(Owner);
   }
 
   Sic.Close();
-
-  printf("Stopping the driver: %d\n", StopDriver(ServiceName));
-  printf("Removing the driver: %d\n", RemoveDriver(ServiceName));
   return EXIT_SUCCESS;
 }
