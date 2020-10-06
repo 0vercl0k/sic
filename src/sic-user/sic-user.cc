@@ -82,8 +82,8 @@ int main() {
 
   ScopedSymInit Sym(SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME);
 
-  SIC_CONTEXT SicCtx;
-  RtlZeroMemory(&SicCtx, sizeof(SicCtx));
+  SIC_OFFSETS SicOffsets;
+  RtlZeroMemory(&SicOffsets, sizeof(SicOffsets));
 
   //
   // Grab offsets.
@@ -93,22 +93,21 @@ int main() {
 
   if (!GetFieldOffsetFromModule(LR"(c:\windows\system32\ntoskrnl.exe)",
                                 L"_EPROCESS", L"VadRoot",
-                                &SicCtx.Offsets.EPROCESSToVadRoot)) {
+                                &SicOffsets.EPROCESSToVadRoot)) {
     printf("Failed to grab nt!_EPROCESS.VadRoot offset.\n");
     return EXIT_FAILURE;
   }
 
   if (!GetFieldOffsetFromModule(LR"(c:\windows\system32\ntoskrnl.exe)",
                                 L"_MMVAD_SHORT", L"u",
-                                &SicCtx.Offsets.MMVAD_SHORTToVadFlags)) {
+                                &SicOffsets.MMVAD_SHORTToVadFlags)) {
     printf("Failed to grab nt!_MMVAD_SHORT.u.VadFlags offset.\n");
     return EXIT_FAILURE;
   }
 
   if (!GetFieldOffsetFromModule(
           LR"(c:\windows\system32\ntoskrnl.exe)", L"_MMVAD_FLAGS",
-          L"PrivateMemory",
-          &SicCtx.Offsets.MMVAD_FLAGSPrivateMemoryBitPosition)) {
+          L"PrivateMemory", &SicOffsets.MMVAD_FLAGSPrivateMemoryBitPosition)) {
     printf("Failed to grab nt!_MMVAD_FLAGS.PrivateMemory bit position.\n");
     return EXIT_FAILURE;
   }
@@ -122,7 +121,8 @@ int main() {
   const char *ServiceFilename = "sic-drv.sys";
 
   if (!InstallDriver(ServiceName, ServiceDisplayName, ServiceFilename)) {
-    printf("InstallDriver failed.\n");
+    printf(
+        "InstallDriver failed; are you running this from an admin prompt?\n");
     return EXIT_FAILURE;
   }
 
@@ -143,9 +143,9 @@ int main() {
   // Get a handle to the device.
   //
 
-  ScopedHandle Sic(CreateFileA(R"(\\.\SoSIC)", GENERIC_READ | GENERIC_WRITE, 0,
-                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-                               nullptr));
+  ScopedHandle Sic =
+      CreateFileA(R"(\\.\SoSIC)", GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
   if (!Sic.Valid()) {
     printf("Could not open the sic device.\n");
@@ -153,10 +153,39 @@ int main() {
   }
 
   DWORD BytesReturned;
-  DeviceIoControl(Sic, IOCTL_SIC_INIT_CONTEXT, &SicCtx, sizeof(SicCtx), nullptr,
-                  0, &BytesReturned, nullptr);
-  DeviceIoControl(Sic, IOCTL_SIC_ENUM_SHMS, nullptr, 0, nullptr, 0,
-                  &BytesReturned, nullptr);
+  if (!DeviceIoControl(Sic, IOCTL_SIC_INIT_CONTEXT, &SicOffsets,
+                       sizeof(SicOffsets), nullptr, 0, &BytesReturned,
+                       nullptr)) {
+    printf("IOCTL_SIC_INIT_CONTEXT failed\n");
+  }
+
+  DWORD64 Size = 0;
+  if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS_SIZE, nullptr, 0, &Size,
+                       sizeof(Size), &BytesReturned, nullptr)) {
+    printf("IOCTL_SIC_GET_SHMS_SIZE failed\n");
+  }
+
+  auto Buffer = std::make_unique<uint8_t[]>(Size);
+  if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS, nullptr, 0, Buffer.get(),
+                       DWORD(Size), &BytesReturned, nullptr)) {
+    printf("IOCTL_SIC_GET_SHMS failed\n");
+  } else {
+    const auto Shms = PSIC_SHMS(Buffer.get());
+    PSIC_SHM_ENTRY Shm = &Shms->Shms[0];
+    for (DWORD64 NumberSharedMemory = 0;
+         NumberSharedMemory < Shms->NumberSharedMemory; NumberSharedMemory++) {
+      printf("SHM: %016llx\n", Shm->PrototypePTE);
+      PSIC_SHARED_MEMORY_OWNER_ENTRY Owner = &Shm->Owners[0];
+      for (DWORD64 NumberOwners = 0; NumberOwners < Shm->NumberOwners;
+           NumberOwners++) {
+        printf("  Owner: %016llx at %016llx-%016llx\n", Owner->Process,
+               Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
+        Owner++;
+      }
+      Shm = PSIC_SHM_ENTRY(Owner);
+    }
+  }
+
   Sic.Close();
 
   printf("Stopping the driver: %d\n", StopDriver(ServiceName));

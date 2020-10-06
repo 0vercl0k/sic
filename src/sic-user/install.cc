@@ -1,5 +1,6 @@
 // Axel '0vercl0k' Souchet - February 22 2020
 #include "install.h"
+#include "../common/common-user.h"
 
 #include <filesystem>
 
@@ -7,22 +8,24 @@ namespace fs = std::filesystem;
 
 bool InstallDriver(const char *ServiceName, const char *ServiceDisplayName,
                    const char *ServiceFilename) {
-  const SC_HANDLE Scm =
+  const ScopedServiceHandle Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
   if (Scm == nullptr) {
     return false;
   }
 
   const fs::path SicPath = fs::current_path() / ServiceFilename;
-  const SC_HANDLE Service = CreateServiceA(
+  if (!fs::exists(SicPath)) {
+    printf("%s does not exist, exiting\n", SicPath.string().c_str());
+    return false;
+  }
+
+  const ScopedServiceHandle Service = CreateServiceA(
       Scm, ServiceName, ServiceDisplayName, 0, SERVICE_KERNEL_DRIVER,
       SERVICE_DEMAND_START, SERVICE_ERROR_SEVERE, SicPath.string().c_str(),
       nullptr, nullptr, nullptr, nullptr, nullptr);
 
-  CloseServiceHandle(Scm);
-
   if (Service != nullptr) {
-    CloseServiceHandle(Service);
     return true;
   }
 
@@ -31,39 +34,36 @@ bool InstallDriver(const char *ServiceName, const char *ServiceDisplayName,
 }
 
 bool StartDriver(const char *ServiceName) {
-  const SC_HANDLE Scm =
+  const ScopedServiceHandle Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const SC_HANDLE Service = OpenService(Scm, ServiceName, SERVICE_START);
+  const ScopedServiceHandle Service =
+      OpenService(Scm, ServiceName, SERVICE_START);
 
   if (Service == nullptr) {
-    CloseServiceHandle(Scm);
     return false;
   }
 
   const BOOL Success = StartService(Service, 0, nullptr);
-  CloseServiceHandle(Scm);
-  CloseServiceHandle(Service);
   return Success || GetLastError() == ERROR_SERVICE_ALREADY_RUNNING;
 }
 
 bool StopDriver(const char *ServiceName) {
-  const SC_HANDLE Scm =
+  const ScopedServiceHandle Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const SC_HANDLE Service =
+  const ScopedServiceHandle Service =
       OpenService(Scm, ServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS);
 
   if (Service == nullptr) {
-    CloseServiceHandle(Scm);
     return false;
   }
 
@@ -86,27 +86,23 @@ bool StopDriver(const char *ServiceName) {
     printf("Success: %d, dwCurrentState: %d..", Success, Status.dwCurrentState);
   }
 
-  CloseServiceHandle(Scm);
-  CloseServiceHandle(Service);
   return Success && Status.dwCurrentState == SERVICE_STOPPED;
 }
 
 bool RemoveDriver(const char *ServiceName) {
-  const SC_HANDLE Scm =
+  const ScopedServiceHandle Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const SC_HANDLE Service = OpenService(Scm, ServiceName, DELETE);
+  const ScopedServiceHandle Service = OpenService(Scm, ServiceName, DELETE);
 
   if (Service == nullptr) {
     return false;
   }
 
   const bool Success = DeleteService(Service);
-  CloseServiceHandle(Scm);
-  CloseServiceHandle(Service);
   return Success;
 }

@@ -170,8 +170,8 @@ Return Value:
     // Create a pagefile-backed mapping of a page.
     //
 
-    const ScopedHandle Shm(
-        CreateFileMappingA(INVALID_HANDLE_VALUE, &SecAttributes, PAGE_READWRITE, 0, OnePage, nullptr));
+    const ScopedHandle Shm =
+        CreateFileMappingA(INVALID_HANDLE_VALUE, &SecAttributes, PAGE_READWRITE, 0, OnePage, nullptr);
 
     if (!Shm.Valid())
     {
@@ -185,7 +185,7 @@ Return Value:
     // terminate themselves.
     //
 
-    ScopedHandle Event(CreateEventA(&SecAttributes, true, false, nullptr));
+    ScopedHandle Event = CreateEventA(&SecAttributes, true, false, nullptr);
 
     //
     // To pass the handle value to the children, we simply use the shared memory that every
@@ -261,7 +261,7 @@ Return Value:
 --*/
 
 {
-    ScopedHandle Shm(HANDLE(strtoull(HandleString, nullptr, 16)));
+    ScopedHandle Shm = HANDLE(strtoull(HandleString, nullptr, 16));
 
     //
     // Map a view of the shared memory section.

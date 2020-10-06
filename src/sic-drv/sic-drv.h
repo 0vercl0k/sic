@@ -35,6 +35,7 @@
 typedef struct _SICK_LOOKUP_NODE_OWNERS
 {
     LIST_ENTRY List;
+    DWORD64 Pid;
     PEPROCESS Process;
     ULONG_PTR StartingVirtualAddress;
     ULONG_PTR EndingVirtualAddress;

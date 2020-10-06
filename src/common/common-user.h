@@ -8,34 +8,47 @@
 // https://cs.chromium.org/chromium/buildtools/gn/src/base/win/scoped_handle.h
 //
 
-class ScopedHandle
+template <typename _HandleType, typename _Deleter>
+class Scoped
 {
 private:
-    HANDLE Handle_;
+    _HandleType Handle_;
 
 public:
-    explicit ScopedHandle(const HANDLE Handle) : Handle_(Handle) {}
-    ~ScopedHandle() { Close(); }
+    Scoped(const _HandleType Handle) : Handle_(Handle) {}
 
     //
     // Rule of three.
     //
 
-    ScopedHandle(const ScopedHandle &) = delete;
-    ScopedHandle &operator=(const ScopedHandle &) = delete;
+    ~Scoped() { Close(); }
+    Scoped(const Scoped &) = delete;
+    Scoped &operator=(const Scoped &) = delete;
 
-    static bool IsHandleValid(const HANDLE Handle) { return Handle != INVALID_HANDLE_VALUE && Handle != nullptr; }
+    bool IsHandleValid(const _HandleType Handle) const { return Handle != _HandleType(-1) && Handle != nullptr; }
 
     void Close()
     {
         if (IsHandleValid(Handle_))
         {
-            CloseHandle(Handle_);
-            Handle_ = INVALID_HANDLE_VALUE;
+            _Deleter()(Handle_);
+            Handle_ = nullptr;
         }
     }
 
     bool Valid() const { return IsHandleValid(Handle_); }
 
-    operator HANDLE() const { return Handle_; }
+    operator _HandleType() const { return Handle_; }
 };
+
+struct HandleDeleter_t
+{
+    void operator()(const HANDLE Handle) { CloseHandle(Handle); }
+};
+using ScopedHandle = Scoped<HANDLE, HandleDeleter_t>;
+
+struct ServiceHandleDeleter_t
+{
+    void operator()(const SC_HANDLE &Handle) { CloseServiceHandle(Handle); };
+};
+using ScopedServiceHandle = Scoped<SC_HANDLE, ServiceHandleDeleter_t>;
