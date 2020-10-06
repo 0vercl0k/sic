@@ -122,8 +122,6 @@ int main(int argc, char *argv[]) {
   // Grab offsets.
   //
 
-  printf("Grabbing offsets...\n");
-
   if (!GetFieldOffsetFromModule(LR"(c:\windows\system32\ntoskrnl.exe)",
                                 L"_EPROCESS", L"VadRoot",
                                 &SicOffsets.EPROCESSToVadRoot)) {
@@ -154,8 +152,6 @@ int main(int argc, char *argv[]) {
         "InstallDriver failed; are you running this from an admin prompt?\n");
     return EXIT_FAILURE;
   }
-
-  printf("Driver installed.\n");
 
   //
   // Start the driver.
