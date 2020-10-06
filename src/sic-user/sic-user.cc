@@ -20,17 +20,100 @@ namespace fs = std::filesystem;
 const char *ServiceName = "sic";
 const char *ServiceDisplayName = "Sharing Is Caring Driver";
 const char *ServiceFilename = "sic-drv.sys";
+const char *DeviceName = R"(\\.\)" SIC_DEVICE_NAME;
 
-template <typename ExitFunctionTy> class ScopeExit_t {
-  ExitFunctionTy ExitFunction_;
+#if 0
+void SicGetProcessList(PSYSTEM_PROCESS_INFORMATION *ProcessList)
 
-public:
-  explicit ScopeExit_t(ExitFunctionTy &&ExitFunction)
-      : ExitFunction_(ExitFunction) {}
-  ~ScopeExit_t() { ExitFunction_(); }
-  ScopeExit_t(const ScopeExit_t &) = delete;
-  ScopeExit_t &operator=(const ScopeExit_t &) = delete;
-};
+{
+  const UINT32 MaxAttempts = 10;
+  NTSTATUS Status = STATUS_SUCCESS;
+
+  PAGED_CODE();
+
+  //
+  // Initialize the output buffer to NULL.
+  //
+
+  *ProcessList = NULL;
+
+  //
+  // If we didn't receive a ProcessList, we fail the call as we
+  // expect one.
+  //
+
+  if (!ARGUMENT_PRESENT(ProcessList)) {
+    Status = STATUS_INVALID_PARAMETER;
+    goto clean;
+  }
+
+  //
+  // Try out to get a process list in a maximum number of attempts.
+  // We do this because we can encounter racy behavior where the world
+  // changes in between the two ZwQuerySystemInformation.. sigh.
+  //
+
+  for (UINT32 Attempt = 0; Attempt < MaxAttempts; Attempt++) {
+    ULONG ReturnLength = 0;
+    PVOID LocalProcessList = NULL;
+
+    //
+    // How much space do we need?
+    //
+
+    Status = ZwQuerySystemInformation(SystemProcessInformation, NULL, 0,
+                                      &ReturnLength);
+
+    //
+    // Allocate memory to receive the process list.
+    //
+
+    LocalProcessList =
+        ExAllocatePoolZero(PagedPool, ReturnLength, SIC_MEMORY_TAG);
+
+    if (LocalProcessList == NULL) {
+      Status = STATUS_INSUFFICIENT_RESOURCES;
+      goto clean;
+    }
+
+    //
+    // Get a list of the processes running on the system.
+    //
+
+    Status =
+        ZwQuerySystemInformation(SystemProcessInformation, LocalProcessList,
+                                 ReturnLength, &ReturnLength);
+
+    //
+    // If we fail, let's clean up behind ourselves, and give it another try!
+    //
+
+    if (!NT_SUCCESS(Status)) {
+      ExFreePoolWithTag(LocalProcessList, SIC_MEMORY_TAG);
+
+      LocalProcessList = NULL;
+      continue;
+    }
+
+    //
+    // If we make it here, it means that we have our list and we are done.
+    //
+
+    *ProcessList = LocalProcessList;
+
+    LocalProcessList = NULL;
+    break;
+  }
+
+clean:
+
+  //
+  // If we managed to get the list, it's all good otherwise it's a failure.
+  //
+
+  return Status;
+}
+#endif
 
 int main() {
   //
@@ -38,8 +121,8 @@ int main() {
   //
 
   const auto OnExit = ScopeExit_t([&]() {
-    printf("Stopping the driver: %d\n", StopDriver(ServiceName));
-    printf("Removing the driver: %d\n", RemoveDriver(ServiceName));
+    StopDriver(ServiceName);
+    RemoveDriver(ServiceName);
   });
 
   //
@@ -104,7 +187,7 @@ int main() {
   // Initialize dbghelp.
   //
 
-  ScopedSymInit Sym(SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME);
+  const ScopedSymInit Sym(SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME);
 
   SIC_OFFSETS SicOffsets;
   RtlZeroMemory(&SicOffsets, sizeof(SicOffsets));
@@ -163,14 +246,18 @@ int main() {
   // Get a handle to the device.
   //
 
-  ScopedHandle Sic =
-      CreateFileA(R"(\\.\SoSIC)", GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+  ScopedHandle_t Sic =
+      CreateFileA(DeviceName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
   if (!Sic.Valid()) {
     printf("Could not open the sic device.\n");
     return EXIT_FAILURE;
   }
+
+  //
+  // Initialize the offsets that the driver needs.
+  //
 
   DWORD BytesReturned;
   if (!DeviceIoControl(Sic, IOCTL_SIC_INIT_CONTEXT, &SicOffsets,
@@ -180,6 +267,10 @@ int main() {
     return EXIT_FAILURE;
   }
 
+  //
+  // Gets the size of the lookup table.
+  //
+
   DWORD64 Size = 0;
   if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS_SIZE, nullptr, 0, &Size,
                        sizeof(Size), &BytesReturned, nullptr)) {
@@ -187,28 +278,60 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  auto Buffer = std::make_unique<uint8_t[]>(Size);
+  //
+  // Allocate memory and get the shms.
+  //
+
+  auto Buffer = std::make_unique<uint8_t[]>(size_t(Size));
   if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS, nullptr, 0, Buffer.get(),
-                       DWORD(Size), &BytesReturned, nullptr)) {
+                       DWORD(Size), &BytesReturned, nullptr) ||
+      BytesReturned != Size) {
     printf("IOCTL_SIC_GET_SHMS failed\n");
     return EXIT_FAILURE;
   }
 
+  //
+  // Walk the buffer.
+  //
+
   const auto Shms = PSIC_SHMS(Buffer.get());
-  PSIC_SHM_ENTRY Shm = &Shms->Shms[0];
+  auto Shm = &Shms->Shms[0];
   for (DWORD64 NumberSharedMemory = 0;
        NumberSharedMemory < Shms->NumberSharedMemory; NumberSharedMemory++) {
-    printf("SHM: %016llx\n", Shm->PrototypePTE);
-    PSIC_SHARED_MEMORY_OWNER_ENTRY Owner = &Shm->Owners[0];
+    //
+    // Print out the information regarding the mapping.
+    //
+
+    printf("ProtoPTE: %016llx\n", Shm->PrototypePTE);
+
+    //
+    // Iterate through the owners of the mapping.
+    //
+
+    auto Owner = &Shm->Owners[0];
     for (DWORD64 NumberOwners = 0; NumberOwners < Shm->NumberOwners;
          NumberOwners++) {
+
+      //
+      // Print out the information regarding the owner.
+      //
+
       printf("  Owner: %016llx at %016llx-%016llx\n", Owner->Process,
              Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
+
+      //
+      // Go to the next owner.
+      //
+
       Owner++;
     }
+
+    //
+    // Go to the next mapping.
+    //
+
     Shm = PSIC_SHM_ENTRY(Owner);
   }
 
-  Sic.Close();
   return EXIT_SUCCESS;
 }

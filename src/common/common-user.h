@@ -8,47 +8,73 @@
 // https://cs.chromium.org/chromium/buildtools/gn/src/base/win/scoped_handle.h
 //
 
-template <typename _HandleType, typename _Deleter>
-class Scoped
+template <typename HandleTy, typename DeleterTy>
+class Scoped_t
 {
 private:
-    _HandleType Handle_;
+    HandleTy Handle_;
 
 public:
-    Scoped(const _HandleType Handle) : Handle_(Handle) {}
+    Scoped_t(const HandleTy Handle) : Handle_(Handle) {}
 
     //
     // Rule of three.
     //
 
-    ~Scoped() { Close(); }
-    Scoped(const Scoped &) = delete;
-    Scoped &operator=(const Scoped &) = delete;
+    ~Scoped_t() { Close(); }
+    Scoped_t(const Scoped_t &) = delete;
+    Scoped_t &operator=(const Scoped_t &) = delete;
 
-    bool IsHandleValid(const _HandleType Handle) const { return Handle != _HandleType(-1) && Handle != nullptr; }
+    bool IsHandleValid(const HandleTy Handle) const { return Handle != HandleTy(-1) && Handle != nullptr; }
 
     void Close()
     {
         if (IsHandleValid(Handle_))
         {
-            _Deleter()(Handle_);
+            DeleterTy::Close(Handle_);
             Handle_ = nullptr;
         }
     }
 
     bool Valid() const { return IsHandleValid(Handle_); }
 
-    operator _HandleType() const { return Handle_; }
+    operator HandleTy() const { return Handle_; }
 };
 
 struct HandleDeleter_t
 {
-    void operator()(const HANDLE Handle) { CloseHandle(Handle); }
+    static void Close(const HANDLE Handle) { CloseHandle(Handle); }
 };
-using ScopedHandle = Scoped<HANDLE, HandleDeleter_t>;
 
 struct ServiceHandleDeleter_t
 {
-    void operator()(const SC_HANDLE &Handle) { CloseServiceHandle(Handle); };
+    static void Close(const SC_HANDLE &Handle) { CloseServiceHandle(Handle); };
 };
-using ScopedServiceHandle = Scoped<SC_HANDLE, ServiceHandleDeleter_t>;
+
+//
+// Handy types for cleaning up the code.
+//
+
+using ScopedHandle_t = Scoped_t<HANDLE, HandleDeleter_t>;
+using ScopedServiceHandle_t = Scoped_t<SC_HANDLE, ServiceHandleDeleter_t>;
+
+//
+// Simple RAII class to execute a function on a scope end.
+//
+
+template <typename ExitFunctionTy>
+class ScopeExit_t
+{
+    ExitFunctionTy ExitFunction_;
+
+public:
+    explicit ScopeExit_t(ExitFunctionTy &&ExitFunction) : ExitFunction_(ExitFunction) {}
+
+    //
+    // Rule of three.
+    //
+
+    ~ScopeExit_t() { ExitFunction_(); }
+    ScopeExit_t(const ScopeExit_t &) = delete;
+    ScopeExit_t &operator=(const ScopeExit_t &) = delete;
+};

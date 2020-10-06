@@ -3,6 +3,10 @@
 #include <ntifs.h>
 #include <ntintsafe.h>
 
+#if defined(__i386__) || defined(_M_IX86)
+#    error Platform not supported.
+#endif
+
 //
 // Bunch of useful resources I found useful you also might enjoy:
 //   - ProcessHacker's pht project,
@@ -51,8 +55,8 @@ SIC_CONTEXT gSicCtx;
 // Device and symbolic link name.
 //
 
-#define SIC_NT_DEVICE_NAME L"\\Device\\SoSIC"
-#define SIC_DOS_DEVICE_NAME L"\\DosDevices\\SoSIC"
+#define SIC_NT_DEVICE_NAME L"\\Device\\" SIC_DEVICE_NAME
+#define SIC_DOS_DEVICE_NAME L"\\DosDevices\\" SIC_DEVICE_NAME
 
 //
 // Time to do some work I suppose.
@@ -931,7 +935,7 @@ clean:
     {
         ULONG_PTR Written = 0;
         Status = RtlULongPtrSub((ULONG_PTR)ShmEntry, (ULONG_PTR)OutputBuffer, &Written);
-        if (NT_SUCCESS(Status) && WrittenLength != NULL)
+        if (NT_SUCCESS(Status) && ARGUMENT_PRESENT(WrittenLength))
         {
             *WrittenLength = Written;
         }
@@ -944,7 +948,7 @@ clean:
     if (!NT_SUCCESS(Status))
     {
         memset(OutputBuffer, 0, OutputBufferLength);
-        if (WrittenLength)
+        if (ARGUMENT_PRESENT(WrittenLength))
         {
             *WrittenLength = 0;
         }
@@ -1322,8 +1326,7 @@ Return Value:
             NT_ASSERT(RtlNumberGenericTableElementsAvl(&gSicCtx.ShmsTable) == 0);
         }
 
-        PDWORD64 OutputSize = (PDWORD64)OutputBuffer;
-        Status = SicFindShms(OutputSize);
+        Status = SicFindShms((PDWORD64)OutputBuffer);
         if (NT_SUCCESS(Status))
         {
             Information = sizeof(DWORD64);

@@ -29,8 +29,9 @@
 #        define DebugPrintVerbose(_fmt_, ...) /* Nuthin. */
 #    endif                                    // SIC_VERBOSE
 #else
-#    define DebugPrint(...) /* Nuthin. */
-#endif                      // DBG
+#    define DebugPrint(...)        /* Nuthin. */
+#    define DebugPrintVerbose(...) /* Nuthin. */
+#endif                             // DBG
 
 typedef struct _SICK_LOOKUP_NODE_OWNERS
 {

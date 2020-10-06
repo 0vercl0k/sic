@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 bool InstallDriver(const char *ServiceName, const char *ServiceDisplayName,
                    const char *ServiceFilename) {
-  const ScopedServiceHandle Scm =
+  const ScopedServiceHandle_t Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
   if (Scm == nullptr) {
     return false;
@@ -20,7 +20,7 @@ bool InstallDriver(const char *ServiceName, const char *ServiceDisplayName,
     return false;
   }
 
-  const ScopedServiceHandle Service = CreateServiceA(
+  const ScopedServiceHandle_t Service = CreateServiceA(
       Scm, ServiceName, ServiceDisplayName, 0, SERVICE_KERNEL_DRIVER,
       SERVICE_DEMAND_START, SERVICE_ERROR_SEVERE, SicPath.string().c_str(),
       nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -34,14 +34,14 @@ bool InstallDriver(const char *ServiceName, const char *ServiceDisplayName,
 }
 
 bool StartDriver(const char *ServiceName) {
-  const ScopedServiceHandle Scm =
+  const ScopedServiceHandle_t Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const ScopedServiceHandle Service =
+  const ScopedServiceHandle_t Service =
       OpenService(Scm, ServiceName, SERVICE_START);
 
   if (Service == nullptr) {
@@ -53,14 +53,14 @@ bool StartDriver(const char *ServiceName) {
 }
 
 bool StopDriver(const char *ServiceName) {
-  const ScopedServiceHandle Scm =
+  const ScopedServiceHandle_t Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const ScopedServiceHandle Service =
+  const ScopedServiceHandle_t Service =
       OpenService(Scm, ServiceName, SERVICE_STOP | SERVICE_QUERY_STATUS);
 
   if (Service == nullptr) {
@@ -77,27 +77,27 @@ bool StopDriver(const char *ServiceName) {
   BOOL Success =
       ControlService(Service, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&Status);
   while (Success && Status.dwCurrentState != SERVICE_STOPPED) {
-    printf("Waiting for %d..", Status.dwWaitHint);
+    printf("Waiting for %u..", Status.dwWaitHint);
     Sleep(Status.dwWaitHint);
     DWORD BytesNeeded;
     Success =
         QueryServiceStatusEx(Service, SC_STATUS_PROCESS_INFO, (LPBYTE)&Status,
                              sizeof(Status), &BytesNeeded);
-    printf("Success: %d, dwCurrentState: %d..", Success, Status.dwCurrentState);
+    printf("Success: %d, dwCurrentState: %u..", Success, Status.dwCurrentState);
   }
 
   return Success && Status.dwCurrentState == SERVICE_STOPPED;
 }
 
 bool RemoveDriver(const char *ServiceName) {
-  const ScopedServiceHandle Scm =
+  const ScopedServiceHandle_t Scm =
       OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
 
   if (Scm == nullptr) {
     return false;
   }
 
-  const ScopedServiceHandle Service = OpenService(Scm, ServiceName, DELETE);
+  const ScopedServiceHandle_t Service = OpenService(Scm, ServiceName, DELETE);
 
   if (Service == nullptr) {
     return false;

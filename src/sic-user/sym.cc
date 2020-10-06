@@ -30,7 +30,7 @@ bool GetFieldOffset(const DWORD64 Base, const wchar_t *TypeName,
   //
 
   if (!SymGetTypeFromNameW(GetCurrentProcess(), Base, TypeName, SymbolInfo)) {
-    printf("SymGetTypeFromName failed %d.\n", GetLastError());
+    printf("SymGetTypeFromName failed %u.\n", GetLastError());
     return false;
   }
 
@@ -43,7 +43,7 @@ bool GetFieldOffset(const DWORD64 Base, const wchar_t *TypeName,
   DWORD ChildrenCount = 0;
   if (!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex,
                       TI_GET_CHILDRENCOUNT, &ChildrenCount)) {
-    printf("SymGetTypeInfo failed %d.\n", GetLastError());
+    printf("SymGetTypeInfo failed %u.\n", GetLastError());
     return false;
   }
 
@@ -68,7 +68,7 @@ bool GetFieldOffset(const DWORD64 Base, const wchar_t *TypeName,
 
   if (!SymGetTypeInfo(GetCurrentProcess(), Base, TypeIndex, TI_FINDCHILDREN,
                       FindChildrenParams)) {
-    printf("SymGetTypeInfo2 failed %d.\n", GetLastError());
+    printf("SymGetTypeInfo2 failed %u.\n", GetLastError());
     return false;
   }
 
