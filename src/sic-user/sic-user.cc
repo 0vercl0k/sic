@@ -4,9 +4,12 @@
 #include "install.h"
 #include "sym.h"
 #include "utils.h"
+#include <CLI/CLI.hpp>
 #include <cstdio>
 #include <filesystem>
+#include <string>
 #include <unordered_map>
+#include <vector>
 #include <windows.h>
 
 #if defined(__i386__) || defined(_M_IX86)
@@ -24,7 +27,21 @@ const char *ServiceDisplayName = "Sharing Is Caring Driver";
 const char *ServiceFilename = "sic-drv.sys";
 const char *DeviceName = R"(\\.\)" SIC_DEVICE_NAME;
 
-int main() {
+struct Opts_t {
+  std::string ProcessName;
+};
+
+int main(int argc, char *argv[]) {
+  Opts_t Opts;
+  CLI::App Sic("SiC - Enumerate shared-memory mappings on Windows");
+
+  Sic.allow_windows_style_options();
+  Sic.set_help_all_flag("--help-all", "Expand all help");
+  Sic.add_option("-p,--process", Opts.ProcessName,
+                 "Filter mapping mapped by process names");
+
+  CLI11_PARSE(Sic, argc, argv);
+
   //
   // Always stop and remove the driver on exit.
   //
@@ -155,11 +172,11 @@ int main() {
   // Get a handle to the device.
   //
 
-  ScopedHandle_t Sic =
+  const ScopedHandle_t SicDevice =
       CreateFileA(DeviceName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-  if (!Sic.Valid()) {
+  if (!SicDevice.Valid()) {
     printf("Could not open the sic device.\n");
     return EXIT_FAILURE;
   }
@@ -169,7 +186,7 @@ int main() {
   //
 
   DWORD BytesReturned;
-  if (!DeviceIoControl(Sic, IOCTL_SIC_INIT_CONTEXT, &SicOffsets,
+  if (!DeviceIoControl(SicDevice, IOCTL_SIC_INIT_CONTEXT, &SicOffsets,
                        sizeof(SicOffsets), nullptr, 0, &BytesReturned,
                        nullptr)) {
     printf("IOCTL_SIC_INIT_CONTEXT failed\n");
@@ -181,7 +198,7 @@ int main() {
   //
 
   DWORD64 Size = 0;
-  if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS_SIZE, nullptr, 0, &Size,
+  if (!DeviceIoControl(SicDevice, IOCTL_SIC_GET_SHMS_SIZE, nullptr, 0, &Size,
                        sizeof(Size), &BytesReturned, nullptr)) {
     printf("IOCTL_SIC_GET_SHMS_SIZE failed\n");
     return EXIT_FAILURE;
@@ -192,7 +209,7 @@ int main() {
   //
 
   auto Buffer = std::make_unique<uint8_t[]>(size_t(Size));
-  if (!DeviceIoControl(Sic, IOCTL_SIC_GET_SHMS, nullptr, 0, Buffer.get(),
+  if (!DeviceIoControl(SicDevice, IOCTL_SIC_GET_SHMS, nullptr, 0, Buffer.get(),
                        DWORD(Size), &BytesReturned, nullptr) ||
       BytesReturned != Size) {
     printf("IOCTL_SIC_GET_SHMS failed\n");
@@ -210,39 +227,57 @@ int main() {
   }
 
   //
-  // Walk the buffer.
+  // Walk the buffer to create various lookup tables.
+  //
+
+  using Pte_t = uint64_t;
+  using Pid_t = uintptr_t;
+  std::unordered_map<Pte_t, std::vector<PSIC_SHARED_MEMORY_OWNER_ENTRY>>
+      PteToOwners;
+  std::unordered_map<Pid_t, std::vector<PSIC_SHM_ENTRY>> NameToMappings;
+
+  //
+  // Start by walking the SHMs..
   //
 
   const auto Shms = PSIC_SHMS(Buffer.get());
   auto Shm = &Shms->Shms[0];
-  for (DWORD64 NumberSharedMemory = 0;
+  for (uint64_t NumberSharedMemory = 0;
        NumberSharedMemory < Shms->NumberSharedMemory; NumberSharedMemory++) {
-    //
-    // Print out the information regarding the mapping.
-    //
-
-    printf("ProtoPTE: %016llx\n", Shm->PrototypePTE);
 
     //
-    // Iterate through the owners of the mapping.
+    // Then, walk the owners..
     //
 
+    std::vector<PSIC_SHARED_MEMORY_OWNER_ENTRY> Owners;
     auto Owner = &Shm->Owners[0];
-    for (DWORD64 NumberOwners = 0; NumberOwners < Shm->NumberOwners;
+    for (uint64_t NumberOwners = 0; NumberOwners < Shm->NumberOwners;
          NumberOwners++) {
 
       //
-      // Print out the information regarding the owner.
+      // If we have a PID for it, we feed it into our lookups.
       //
 
-      const wchar_t *ProcessName =
-          Processes.contains(Owner->Pid)
-              ? (wchar_t *)Processes.at(Owner->Pid).c_str()
-              : L"Unknown";
+      if (Processes.contains(Owner->Pid)) {
 
-      printf("  Owner: %016llx (%ws) at %016llx-%016llx\n", Owner->Process,
-             ProcessName, Owner->StartingVirtualAddress,
-             Owner->EndingVirtualAddress);
+        //
+        // Default construct the entry if it doesn't exist yet, or do nothing.
+        //
+
+        NameToMappings.try_emplace(Owner->Pid, std::vector<PSIC_SHM_ENTRY>());
+
+        //
+        // Emplace back the pointer.
+        //
+
+        NameToMappings.at(Owner->Pid).emplace_back(Shm);
+
+        //
+        // Keep track of this owner.
+        //
+
+        Owners.emplace_back(Owner);
+      }
 
       //
       // Go to the next owner.
@@ -256,6 +291,40 @@ int main() {
     //
 
     Shm = PSIC_SHM_ENTRY(Owner);
+    PteToOwners.emplace(Shm->PrototypePTE, Owners);
+  }
+
+  //
+  // Do the display now that we have lookups.
+  //
+
+  for (const auto &[Pte, Owners] : PteToOwners) {
+
+    //
+    // Print out the information regarding the mapping.
+    //
+
+    printf("ProtoPTE: %016llx\n", Pte);
+
+    //
+    // Iterate through the owners of the mapping.
+    //
+
+    for (const auto Owner : Owners) {
+
+      //
+      // Print out the information regarding the owner.
+      //
+
+      const wchar_t *ProcessName =
+          Processes.contains(Owner->Pid)
+              ? (wchar_t *)Processes.at(Owner->Pid).c_str()
+              : L"Unknown";
+
+      printf("  Name: %ws (PID: %lld, EPROCESS: %016llx) at %016llx-%016llx\n",
+             ProcessName, Owner->Pid, Owner->Process,
+             Owner->StartingVirtualAddress, Owner->EndingVirtualAddress);
+    }
   }
 
   return EXIT_SUCCESS;

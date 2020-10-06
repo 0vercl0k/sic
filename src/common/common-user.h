@@ -39,6 +39,7 @@ public:
     bool Valid() const { return IsHandleValid(Handle_); }
 
     operator HandleTy() const { return Handle_; }
+
 };
 
 struct HandleDeleter_t
