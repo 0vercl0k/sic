@@ -27,7 +27,7 @@ The provided driver is [test-signed](https://docs.microsoft.com/en-us/windows-ha
 
 The driver has been tested on the following platforms:
 
-- Windows 10 1903 x64
+:white_check_mark: Windows 10 1903 x64
 
 If you have successfully run it on a different platform, please let me know and I will update the list. If you encounterered any issues running it, please file an issue and I will be happy to help / fix the issue.
 

@@ -659,7 +659,7 @@ clean:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ RTL_GENERIC_COMPARE_RESULTS
-SicCompareRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID FirstStruct, _In_ PVOID SecondStruct)
+SicAvlCompareRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID FirstStruct, _In_ PVOID SecondStruct)
 
 /*++
 
@@ -709,7 +709,7 @@ Return Value:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ PVOID
-SicAllocateRoutine(_In_ PRTL_AVL_TABLE Table, _In_ ULONG ByteSize)
+SicAvlAllocateRoutine(_In_ PRTL_AVL_TABLE Table, _In_ ULONG ByteSize)
 
 /*++
 
@@ -743,7 +743,7 @@ Return Value:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ VOID
-SicFreeRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID Buffer)
+SicAvlFreeRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID Buffer)
 
 /*++
 
@@ -829,7 +829,7 @@ Return Value:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ NTSTATUS
-SicSerializeShms(PVOID OutputBuffer, ULONG OutputBufferLength, PULONG_PTR WrittenLength)
+SicSerializeShms(_In_ const PVOID OutputBuffer, _In_ const ULONG OutputBufferLength, _Out_opt_ PULONG_PTR WrittenLength)
 
 /*++
 
@@ -1477,6 +1477,7 @@ Return Value:
     //
 
     memset(&gSicCtx, 0, sizeof(gSicCtx));
-    RtlInitializeGenericTableAvl(&gSicCtx.ShmsTable, SicCompareRoutine, SicAllocateRoutine, SicFreeRoutine, NULL);
+    RtlInitializeGenericTableAvl(
+        &gSicCtx.ShmsTable, SicAvlCompareRoutine, SicAvlAllocateRoutine, SicAvlFreeRoutine, NULL);
     return STATUS_SUCCESS;
 }

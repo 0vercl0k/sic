@@ -1,6 +1,5 @@
 // Axel '0vercl0k' Souchet - February 19 2020
 #include "sym.h"
-
 #include <memory>
 
 class DisableFsRedirection_t {
