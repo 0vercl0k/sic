@@ -9,7 +9,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: ['x86', 'x64']
+#        platform: ['x86', 'x64']
+       platform: ['x64']
         configuration: ['Debug', 'Release']
     steps:
     - name: Checkout
@@ -18,7 +19,7 @@ jobs:
         submodules: recursive
 
     - name: Setup vs prompt
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@v1.3.0
 
     - name: Build
       run: msbuild /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
