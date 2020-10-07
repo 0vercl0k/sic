@@ -430,6 +430,11 @@ Return Value:
     PAGED_CODE();
 
     DebugPrintVerbose("    VAD: %p\n", Vad);
+
+    //
+    // If it's private, then it's not shared so let's keep it.
+    //
+
     if (PrivateMemory)
     {
         Status = STATUS_SUCCESS;
