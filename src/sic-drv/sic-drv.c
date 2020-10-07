@@ -424,8 +424,8 @@ Return Value:
     PSIC_WALK_VAD_CTX WalkVadContext = Context;
     SIC_LOOKUP_VAD_NODE VadNode;
     NTSTATUS Status = STATUS_SUCCESS;
-    UINT32 VadFlags = *(PUINT32)((PUINT8)Vad + gSicCtx.Offsets.MMVAD_SHORTToVadFlags);
-    BOOLEAN PrivateMemory = ((VadFlags >> gSicCtx.Offsets.MMVAD_FLAGSPrivateMemoryBitPosition) & 1) == 1;
+    const UINT32 VadFlags = *(PUINT32)((PUINT8)Vad + gSicCtx.Offsets.MMVAD_SHORTToVadFlags);
+    const BOOLEAN PrivateMemory = ((VadFlags >> gSicCtx.Offsets.MMVAD_FLAGSPrivateMemoryBitPosition) & 1) == 1;
 
     PAGED_CODE();
 
