@@ -398,7 +398,7 @@ clean:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ NTSTATUS
-SicDumpVad(_In_ const PMMVAD Vad, _Inout_ PVOID Context)
+SicDumpVad(_In_ const PMMVAD Vad, _Inout_ const PVOID Context)
 
 /*++
 
@@ -503,7 +503,7 @@ clean:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ NTSTATUS
-SicWalkVadTreeInOrder(_In_ const PMMVAD Root, _In_ SIC_WALK_VAD_ROUTINE Routine, _Inout_opt_ PVOID Context)
+SicWalkVadTreeInOrder(_In_ const PMMVAD Root, _In_ const SIC_WALK_VAD_ROUTINE Routine, _Inout_opt_ const PVOID Context)
 
 /*++
 
@@ -659,7 +659,7 @@ clean:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ RTL_GENERIC_COMPARE_RESULTS
-SicAvlCompareRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID FirstStruct, _In_ PVOID SecondStruct)
+SicAvlCompareRoutine(_In_ const PRTL_AVL_TABLE Table, _In_ const PVOID FirstStruct, _In_ const PVOID SecondStruct)
 
 /*++
 
@@ -709,7 +709,7 @@ Return Value:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ PVOID
-SicAvlAllocateRoutine(_In_ PRTL_AVL_TABLE Table, _In_ ULONG ByteSize)
+SicAvlAllocateRoutine(_In_ const PRTL_AVL_TABLE Table, _In_ const ULONG ByteSize)
 
 /*++
 
@@ -743,7 +743,7 @@ Return Value:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ VOID
-SicAvlFreeRoutine(_In_ PRTL_AVL_TABLE Table, _In_ PVOID Buffer)
+SicAvlFreeRoutine(_In_ const PRTL_AVL_TABLE Table, _In_ PVOID Buffer)
 
 /*++
 
