@@ -15,7 +15,7 @@ In order for SiC to work you need to place `dbghelp.dll` as well as `symsrv.dll`
 
 **Without internet**: Download `%SystemRoot%\system32\ntoskrnl.exe`'s PDB manually (using [symchk](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/using-symchk) or [WinDbg](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/debugger-download-tools) for example) and drop the PDB file in the application directory.
 
-**With internet**: The dbghelp APIs should interface well with your existing [symbol path](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path).
+**With internet**: The dbghelp APIs should interface well with your existing [symbol path](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path). If you don't have one already set, SiC defines `_NT_SYMBOL_PATH` to `srv*`.
 
 SiC installs a driver in order to be able to scan processes [Virtual Address Descriptors](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-vad) which are software constructs defined by the Windows' kernel to describe a virtual memory region. To be able to install and communicate with the driver it requires SiC to be run from an *Adminstrator Prompt*.
 
