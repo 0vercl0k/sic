@@ -176,7 +176,7 @@ bool GetFieldOffsetFromModule(const wchar_t *ModulePath,
   // Retrieve the offset of the field.
   //
 
-  const BOOL Success = GetFieldOffset(Base, TypeName, FieldName, FieldOffset);
+  const bool Success = GetFieldOffset(Base, TypeName, FieldName, FieldOffset);
 
   //
   // Don't forget to unload the module.

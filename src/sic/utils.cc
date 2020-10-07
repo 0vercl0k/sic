@@ -212,9 +212,8 @@ bool GetOffsets(SIC_OFFSETS &SicOffsets) {
     //
 
     if (!Dbghelp || !Symsrv) {
-      printf("The debugger class expects dbghelp.dll / symsrv.dll in the "
-             "directory "
-             "where the application is running from.\n");
+      printf("SiC needs dbghelp.dll / symsrv.dll in the directory where the "
+             "application is running from, so bailing.\n");
       return false;
     }
 
