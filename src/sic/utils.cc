@@ -150,7 +150,7 @@ std::unordered_map<uint64_t, std::string> GetProcessList() {
       // Finally move the string in the vector.
       //
 
-      Processes.emplace(ProcessList->UniqueProcessId, ImageNameA);
+      Processes.emplace(ProcessList->UniqueProcessId, std::move(ImageNameA));
     }
 
     //
