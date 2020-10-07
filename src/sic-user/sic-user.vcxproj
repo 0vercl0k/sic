@@ -23,6 +23,7 @@
     <ProjectGuid>{1F74AE9C-8FCC-446E-A7D8-5751AAC8959F}</ProjectGuid>
     <RootNamespace>sicuser</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>sic</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

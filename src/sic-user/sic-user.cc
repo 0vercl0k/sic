@@ -28,7 +28,7 @@ const char *ServiceFilename = "sic-drv.sys";
 const char *DeviceName = R"(\\.\)" SIC_DEVICE_NAME;
 
 struct Opts_t {
-  std::string ProcessName;
+  std::string Filter;
 };
 
 int main(int argc, char *argv[]) {
@@ -37,8 +37,8 @@ int main(int argc, char *argv[]) {
 
   Sic.allow_windows_style_options();
   Sic.set_help_all_flag("--help-all", "Expand all help");
-  Sic.add_option("-p,--process", Opts.ProcessName,
-                 "Filter mapping mapped by process names");
+  Sic.add_option("-f,--filer", Opts.Filter,
+                 "Only display shms owned by processes matching this filter");
 
   CLI11_PARSE(Sic, argc, argv);
 
@@ -162,8 +162,6 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  printf("Start driver.\n");
-
   //
   // Get a handle to the device.
   //
@@ -250,15 +248,14 @@ int main(int argc, char *argv[]) {
       // If we have a filter, then let's see if we have a match.
       //
 
-      if (Opts.ProcessName != "" && Processes.contains(Owner->Pid)) {
+      if (Opts.Filter != "" && Processes.contains(Owner->Pid)) {
 
         //
         // If we have a match, then feed it into the to display list.
         //
 
         const std::string &CurrentProcessName = Processes.at(Owner->Pid);
-        ToAdd = CurrentProcessName.find(Opts.ProcessName) !=
-                CurrentProcessName.npos;
+        ToAdd = CurrentProcessName.find(Opts.Filter) != CurrentProcessName.npos;
       }
 
       //

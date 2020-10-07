@@ -1,5 +1,7 @@
 // Axel '0vercl0k' Souchet - October 6 2020
 #include "utils.h"
+#include <algorithm>
+#include <cctype>
 #include <memory>
 #include <windows.h>
 
@@ -114,10 +116,28 @@ std::unordered_map<uintptr_t, std::string> GetProcessList() {
 
     const auto ImageNameW = ProcessList->ImageName.Buffer;
     if (ImageNameW) {
+
+      //
+      // Convert the wide string into a string; it makes the life of the callers
+      // easier.
+      //
+
       const uint16_t ImageNameWLength = ProcessList->ImageName.Length / 2;
       std::string ImageNameA(ImageNameWLength, '\0');
       WideCharToMultiByte(CP_ACP, 0, ImageNameW, ImageNameWLength,
                           ImageNameA.data(), int(ImageNameA.length()), 0, 0);
+
+      //
+      // Also, lower case the string as it'll make matching better.
+      //
+
+      std::transform(ImageNameA.begin(), ImageNameA.end(), ImageNameA.begin(),
+                     [](const char C) { return char(std::tolower(C)); });
+
+      //
+      // Finally move the string in the vector.
+      //
+
       Processes.emplace(ProcessList->UniqueProcessId, ImageNameA);
     }
 
