@@ -5,6 +5,9 @@
 
 This utility enumerates the various shared memory regions mapped in Windows processes. SiC leverages a Windows driver and the [dbghelp]() API to scan the running processes and find the said regions.
 
+![SiC](pics/sic.png)
+
+
 Special thanks to [@masthoon](https://github.com/masthoon) for suggesting the idea and [@yrp604](https://github.com/yrp604) for numerous discussions on virtual memory management.
 
 ## Usage
