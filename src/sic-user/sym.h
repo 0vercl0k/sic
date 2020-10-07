@@ -18,6 +18,12 @@ struct ScopedSymInit_t {
     }
   }
 
+  //
+  // Rule of three.
+  //
+
+  ScopedSymInit_t(const ScopedSymInit_t &) = delete;
+  ScopedSymInit_t &operator=(const ScopedSymInit_t &) = delete;
   ~ScopedSymInit_t() {
     //
     // Don't forget to uninitialize the sym subsystem when we're done with it.
