@@ -4,7 +4,7 @@
 #include <ntintsafe.h>
 
 #if defined(__i386__) || defined(_M_IX86)
-#    error Platform not supported.
+#    error "32-bit kernels are not supported."
 #endif
 
 //

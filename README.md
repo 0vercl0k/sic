@@ -3,10 +3,9 @@
 
 ## Overview
 
-This utility enumerates the various shared memory regions mapped in Windows processes. SiC leverages a Windows driver and the [dbghelp]() API to scan the running processes and find the said regions.
+This utility enumerates the various shared memory regions mapped in Windows processes. SiC leverages a Windows driver and the [dbghelp](https://docs.microsoft.com/en-us/windows/win32/debug/dbghelp-functions) APIs to scan the running processes and find the said regions.
 
 ![SiC](pics/sic.png)
-
 
 Special thanks to [@masthoon](https://github.com/masthoon) for suggesting the idea and [@yrp604](https://github.com/yrp604) for numerous discussions on virtual memory management.
 
@@ -14,7 +13,11 @@ Special thanks to [@masthoon](https://github.com/masthoon) for suggesting the id
 
 In order for SiC to work you need to place `dbghelp.dll` as well as `symsrv.dll` in the directory of the SiC executable. Sic attempts to copy the two files if they are found in the default Windows SDK's Debuggers install location: `c:\Program Files (x86)\Windows Kits\10\Debuggers\<arch>`.
 
-SiC installs a driver in order to be able to scan processes [Virtual Address Descriptors](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-vad) which are software constructs defined by the Windows' kernel to describe a virtual memory region.
+**Without internet**: Download `%SystemRoot%\system32\ntoskrnl.exe`'s PDB manually (using [symchk](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/using-symchk) or [WinDbg](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/debugger-download-tools) for example) and drop the PDB file in the application directory.
+
+**With internet**: The dbghelp APIs should interface well with your existing [symbol path](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path).
+
+SiC installs a driver in order to be able to scan processes [Virtual Address Descriptors](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-vad) which are software constructs defined by the Windows' kernel to describe a virtual memory region. To be able to install and communicate with the driver it requires SiC to be run from an *Adminstrator Prompt*.
 
 ```
 SiC - Enumerate shared memory mappings on Windows
@@ -26,11 +29,15 @@ Options:
   -f,--filer TEXT             Only display shms owned by processes matching this filter
 ```
 
-The provided driver is [test-signed](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/how-to-test-sign-a-driver-package) and as a result you need to turn on [test-signing](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option) in your VM in order to be able to run the driver (`bcdedit.exe -set testsigning on`).
+The provided driver is [test-signed](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/how-to-test-sign-a-driver-package) and as a result you need to either:
+
+- Turn on [test-signing](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option) in your VM in order to be able to run the driver (`bcdedit.exe -set testsigning on`),
+- Turn on [debug](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/setting-up-a-network-debugging-connection-automatically) and have a kernel debugger attached.
 
 The driver has been tested on the following platforms:
 
-:white_check_mark: Windows 10 1903 x64
+- :white_check_mark: Windows 10 1809 x64 (cheers [@yrp604](https://github.com/yrp604))
+- :white_check_mark: Windows 10 1903 x64
 
 If you have successfully run it on a different platform, please let me know and I will update the list. If you encounterered any issues running it, please file an issue and I will be happy to help / fix the issue.
 
@@ -59,3 +66,5 @@ Build succeeded.
 
 Time Elapsed 00:00:00.42
 ```
+
+:exclamation: The driver only supports 64-bit kernels.
