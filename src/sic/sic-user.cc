@@ -53,31 +53,21 @@ int main(int argc, char *argv[]) {
   RtlZeroMemory(&SicOffsets, sizeof(SicOffsets));
 
   //
+  // If there is no NT_SYMBOL_PATH defined, we define a dummy one.
+  //
+
+  GetEnvironmentVariableA("_NT_SYMBOL_PATH", nullptr, 0);
+  if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+    SetEnvironmentVariableA("_NT_SYMBOL_PATH", "srv*");
+  }
+
+  //
   // Grab offsets.
   //
 
   if (!GetOffsets(SicOffsets)) {
-
-    //
-    // If we failed to grab offsets, let's try again by setting a dummy
-    // _NT_SYMBOL_PATH.
-    //
-
-    printf("Failed to GetOffsets but let's try again with a dummy "
-           "_NT_SYMBOL_PATH..\n");
-
-    const bool Res = SetEnvironmentVariableA("_NT_SYMBOL_PATH", "srv*");
-    if (!Res || !GetOffsets(SicOffsets)) {
-
-      //
-      // This time we really call it quits.
-      //
-
-      printf("Failed to grab offsets.\n");
-      return EXIT_FAILURE;
-    }
-
-    printf("This fixed the issue, ignore the above error messages :)\n");
+    printf("Failed to grab offsets.\n");
+    return EXIT_FAILURE;
   }
 
   //

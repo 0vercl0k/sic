@@ -49,6 +49,10 @@ When it finds a VAD that refers to a [Prototype PTE](https://www.codemachine.com
 
 Once the driver is done scanning all the VAD trees, it basically has built a lookup table that contains every Prototype PTEs and a list of processes that have mapped it in their address spaces. The table is packed and sent to user mode where the user agent can display the information.
 
+### Investigating a shared memory mapping in WinDbg
+
+
+
 ## Build
 
 You can open the Visual Studio solution `sic.sln` or build it via the command line with:
