@@ -168,7 +168,7 @@ bool GetFieldOffsetFromModule(const wchar_t *ModulePath,
   const DWORD64 Base = SymLoadModuleExW(GetCurrentProcess(), nullptr,
                                         ModulePath, nullptr, 0, 0, nullptr, 0);
   if (Base == 0) {
-    printf("SymLoadModuleEx failed with GLE=%d.\n", GetLastError());
+    printf("SymLoadModuleEx failed with GLE=%u.\n", GetLastError());
     return false;
   }
 
