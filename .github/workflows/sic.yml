@@ -1,0 +1,34 @@
+name: Builds
+
+on: [push, pull_request]
+
+jobs:
+  Windows:
+    name: Windows latest
+    runs-on: windows-latest 
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ['x86', 'x64']
+        configuration: ['Debug', 'Release']
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Setup vs prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Build
+      run: msbuild /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: bin-${{ matrix.platform }}.${{matrix.configuration }}
+        path: |
+          src/**/sic.exe
+          src/**/sic.pdb
+          src/**/sic-drv.sys
+          src/**/sic-drv.pdb
