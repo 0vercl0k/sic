@@ -3,6 +3,23 @@
 
 #include <memory>
 
+class DisableFsRedirection_t {
+  PVOID Old_;
+
+public:
+  DisableFsRedirection_t() : Old_(nullptr) {
+    Wow64DisableWow64FsRedirection(&Old_);
+  }
+
+  //
+  // Rule of three.
+  //
+
+  ~DisableFsRedirection_t() { Wow64RevertWow64FsRedirection(Old_); }
+  DisableFsRedirection_t(const DisableFsRedirection_t &) = delete;
+  DisableFsRedirection_t &operator=(const DisableFsRedirection_t &) = delete;
+};
+
 //
 // Special thanks to @masthoon for being knowledgeable about dbghelp.
 //
@@ -140,13 +157,19 @@ bool GetFieldOffsetFromModule(const wchar_t *ModulePath,
                               const wchar_t *TypeName, const wchar_t *FieldName,
                               DWORD32 *FieldOffset) {
   //
+  // We disable the Wow64 FS redirection.
+  //
+
+  const DisableFsRedirection_t DisableWow64FsRedirection;
+
+  //
   // Load the symbol table for the module we are interested in.
   //
 
   const DWORD64 Base = SymLoadModuleExW(GetCurrentProcess(), nullptr,
                                         ModulePath, nullptr, 0, 0, nullptr, 0);
   if (Base == 0) {
-    printf("SymLoadModuleEx failed.\n");
+    printf("SymLoadModuleEx failed with GLE=%d.\n", GetLastError());
     return false;
   }
 

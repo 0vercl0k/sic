@@ -5,8 +5,12 @@
 #include <cstdio>
 #include <dbghelp.h>
 
-struct ScopedSymInit {
-  explicit ScopedSymInit(const DWORD Opts) {
+//
+// RAII class to initialize / uninitialize the symbol APIs.
+//
+
+struct ScopedSymInit_t {
+  explicit ScopedSymInit_t(const DWORD Opts) {
     SymSetOptions(Opts);
     if (!SymInitialize(GetCurrentProcess(), nullptr, false)) {
       printf("SymInitialize failed.\n");
@@ -14,7 +18,7 @@ struct ScopedSymInit {
     }
   }
 
-  ~ScopedSymInit() {
+  ~ScopedSymInit_t() {
     //
     // Don't forget to uninitialize the sym subsystem when we're done with it.
     //
@@ -23,8 +27,9 @@ struct ScopedSymInit {
   }
 };
 
-bool GetFieldOffset(const DWORD64 Base, const wchar_t *TypeName,
-                    const wchar_t *FieldName, DWORD32 *FieldOffset);
+//
+// Gets the offset of a field of a symbol exported by a module.
+//
 
 bool GetFieldOffsetFromModule(const wchar_t *ModulePath,
                               const wchar_t *TypeName, const wchar_t *FieldName,

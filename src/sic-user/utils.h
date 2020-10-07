@@ -9,7 +9,7 @@
 // Grabs a list of the running processes.
 //
 
-std::unordered_map<uintptr_t, std::string> GetProcessList();
+std::unordered_map<uint64_t, std::string> GetProcessList();
 
 //
 // Populates the offsets the driver needs to work.

@@ -48,7 +48,7 @@ struct SYSTEM_PROCESS_INFORMATION {
   LARGE_INTEGER KernelTime;
   UNICODE_STRING ImageName;
   UINT32 BasePriority;
-  uintptr_t UniqueProcessId;
+  ULONG_PTR UniqueProcessId;
 };
 
 using PSYSTEM_PROCESS_INFORMATION = SYSTEM_PROCESS_INFORMATION *;
@@ -60,9 +60,9 @@ extern "C" NTSYSCALLAPI NTSTATUS NTAPI ZwQuerySystemInformation(
 
 bool NT_SUCCESS(const NTSTATUS Status) { return Status >= 0; }
 
-std::unordered_map<uintptr_t, std::string> GetProcessList() {
+std::unordered_map<uint64_t, std::string> GetProcessList() {
   const uint32_t MaxAttempts = 10;
-  std::unordered_map<uintptr_t, std::string> Processes;
+  std::unordered_map<uint64_t, std::string> Processes;
 
   //
   // Try out to get a process list in a maximum number of attempts.
@@ -233,7 +233,7 @@ bool GetOffsets(SIC_OFFSETS &SicOffsets) {
   // Initialize dbghelp.
   //
 
-  const ScopedSymInit Sym(SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME);
+  const ScopedSymInit_t Sym(SYMOPT_CASE_INSENSITIVE | SYMOPT_UNDNAME);
 
   //
   // Grab offsets off nt.
