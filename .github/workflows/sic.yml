@@ -24,6 +24,22 @@ jobs:
     - name: Build
       run: msbuild /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
 
+    - name: Copy dbghelp x64
+      if: ${{ matrix.platform == 'x64' }}
+      run: copy "c:\program Files (x86)\windows kits\10\debuggers\x64\dbghelp.dll" src/x64/${{ matrix.configuration }}
+
+    - name: Copy dbghelp x86
+      if: ${{ matrix.platform == 'x86' }}
+      run: copy "c:\program Files (x86)\windows kits\10\debuggers\x64\dbghelp.dll" src/${{ matrix.configuration }}
+
+    - name: Copy symsrv x64
+      if: ${{ matrix.platform == 'x64' }}
+      run: copy "c:\program Files (x86)\windows kits\10\debuggers\x64\symsrv.dll" src/x64/${{ matrix.configuration }}
+
+    - name: Copy symsrv x86
+      if: ${{ matrix.platform == 'x86' }}
+      run: copy "c:\program Files (x86)\windows kits\10\debuggers\x64\symsrv.dll" src/${{ matrix.configuration }}
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
       with:
@@ -33,5 +49,5 @@ jobs:
           src/**/sic.pdb
           src/**/sic-drv.sys
           src/**/sic-drv.pdb
-          c:/program Files (x86)/windows kits/10/debuggers/${{ matrix.platform }}/dbghelp.dll
-          c:/program Files (x86)/windows kits/10/debuggers/${{ matrix.platform }}/symsrv.dll
+          src/**/dbghelp.dll
+          src/**/symsrv.dll
