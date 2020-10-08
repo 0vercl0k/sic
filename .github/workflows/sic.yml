@@ -19,7 +19,7 @@ jobs:
         submodules: recursive
 
     - name: Setup vs prompt
-      uses: ilammy/msvc-dev-cmd@v1.3.0
+      uses: ilammy/msvc-dev-cmd@v1
 
     - name: Build
       run: msbuild /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
