@@ -447,11 +447,11 @@ Return Value:
         goto clean;
     }
 
-    ULONG_PTR StartingVpn = Vad->Core.StartingVpn | ((ULONG_PTR)Vad->Core.StartingVpnHigh << 32);
-    ULONG_PTR EndingVpn = Vad->Core.EndingVpn | ((ULONG_PTR)Vad->Core.EndingVpnHigh << 32);
+    const ULONG_PTR StartingVpn = Vad->Core.StartingVpn | ((ULONG_PTR)Vad->Core.StartingVpnHigh << 32);
+    const ULONG_PTR EndingVpn = Vad->Core.EndingVpn | ((ULONG_PTR)Vad->Core.EndingVpnHigh << 32);
 
-    ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
-    ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
+    const ULONG_PTR StartingVirtualAddress = StartingVpn * PAGE_SIZE;
+    const ULONG_PTR EndingVirtualAddress = EndingVpn * PAGE_SIZE;
 
     DebugPrintVerbose("      StartingVirtualAddress: %zx\n", StartingVirtualAddress);
     DebugPrintVerbose("      EndingVirtualAddress: %zx\n", EndingVirtualAddress);
@@ -465,7 +465,7 @@ Return Value:
     VadNode.FirstPrototypePte = Vad->FirstPrototypePte;
 
     BOOLEAN NewElement = FALSE;
-    PSIC_LOOKUP_VAD_NODE InsertedNode =
+    const PSIC_LOOKUP_VAD_NODE InsertedNode =
         RtlInsertElementGenericTableAvl(WalkVadContext->LookupTable, &VadNode, sizeof(VadNode), &NewElement);
 
     //

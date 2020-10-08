@@ -1,6 +1,6 @@
 name: Builds
 
-# on: [push, pull_request]
+on: [push, pull_request]
 
 jobs:
   Windows:
@@ -33,3 +33,5 @@ jobs:
           src/**/sic.pdb
           src/**/sic-drv.sys
           src/**/sic-drv.pdb
+          c:/program Files (x86)/windows kits/10/debuggers/${{ matrix.platform }}/dbghelp.dll
+          c:/program Files (x86)/windows kits/10/debuggers/${{ matrix.platform }}/symsrv.dll
