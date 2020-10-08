@@ -70,7 +70,7 @@ Time Elapsed 00:00:00.42
 
 :exclamation: The driver only supports 64-bit kernels.
 
-## Interesting results, puzzles, ..
+## Somewhat unexpected results
 
 The funiest part of this project was to skim through the results and have a closer look at some of the results that were a bit unexpected. In this section I share (pun not intented) a few of them. Maybe you know what's going on and if that's the case feel free to edit the below and send out a pull request.
 
@@ -251,6 +251,8 @@ Same on `MicrosoftEdge.exe`:
 000001f8`17590000  06 00 00 00 8c a1 01 00-00 00 00 00 32 03 00 00  ............2...
 ```
 
-The results look legit - this time Process Hacker tells us this is a read-only region (at least in `cmd.exe` and `MicrosoftEdge.exe`):
+According to above the output of the tool looks legit. This time Process Hacker tells us this is a read-only region (at least in `cmd.exe` and `MicrosoftEdge.exe`):
 
 ![ProcessHacker-edge](pics/ph-edge.png)
+
+Again, no clue what this really is :)
