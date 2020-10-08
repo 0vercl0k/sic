@@ -1,4 +1,4 @@
-# Sharing is Caring - Enumerate usermode shared memory mappings on Windows
+# Sharing is Caring - Enumerate shared memory mappings on Windows
 ![Builds](https://github.com/0vercl0k/sic/workflows/Builds/badge.svg)
 
 ## Overview
