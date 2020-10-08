@@ -31,7 +31,7 @@ Options:
   -f,--filer TEXT             Only display shms owned by processes matching this filter
 ```
 
-The provided driver is [test-signed](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/how-to-test-sign-a-driver-package) and as a result you need to either:
+:warning: The provided driver is [test-signed](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/how-to-test-sign-a-driver-package) and as a result you need to either:
 
 - Turn on [test-signing](https://docs.microsoft.com/en-us/windows-hardware/drivers/install/the-testsigning-boot-configuration-option) in your VM in order to be able to run the driver (`bcdedit.exe -set testsigning on`),
 - Turn on [debug](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/setting-up-a-network-debugging-connection-automatically) and have a kernel debugger attached.
