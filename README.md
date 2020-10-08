@@ -258,3 +258,5 @@ According to above the output of the tool looks legit. This time Process Hacker 
 ![ProcessHacker-edge](pics/ph-edge.png)
 
 Again, no clue what this really is :)
+
+**Update**: [@hakril](https://twitter.com/hakril/) [mentioned](https://twitter.com/hakril/status/1314219550976675842) that the mapping was related to API sets and indeed I've confirmed that those mappings match `@$peb->ApiSetSchema`. More can be read in [Api set resolution](https://lucasg.github.io/2017/10/15/Api-set-resolution/) written by [@\_lucas_georges_](https://twitter.com/_lucas_georges_) if you are curious.
