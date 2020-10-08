@@ -1,0 +1,50 @@
+name: Builds
+
+on: [push, pull_request]
+
+jobs:
+  Windows:
+    name: Windows latest
+    runs-on: windows-latest 
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ['x86', 'x64']
+        configuration: ['Debug', 'Release']
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Setup vs prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Build all
+      if: ${{ matrix.platform == 'x64' }}
+      run: msbuild -m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
+
+    # Just build sic-user in x86 as the driver doesn't support x86.
+    - name: Build sic-user
+      if: ${{ matrix.platform == 'x86' }}
+      run: msbuild /target:sic /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} src\sic.sln
+
+    # Only copy the dlls if we are going to upload artifacts; and we don't upload artifacts for x86.
+    - name: Copy dbghelp/symsrv x64
+      if: ${{ matrix.platform == 'x64' }}
+      run: |
+        copy "c:\program Files (x86)\windows kits\10\debuggers\x64\dbghelp.dll" src/x64/${{ matrix.configuration }}
+        copy "c:\program Files (x86)\windows kits\10\debuggers\x64\symsrv.dll" src/x64/${{ matrix.configuration }}
+
+    - name: Upload artifacts
+      if: ${{ matrix.platform == 'x64' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: bin-${{ matrix.platform }}.${{ matrix.configuration }}
+        path: |
+          src/**/${{ matrix.configuration }}/sic.exe
+          src/**/${{ matrix.configuration }}/sic.pdb
+          src/**/${{ matrix.configuration }}/sic-drv.sys
+          src/**/${{ matrix.configuration }}/sic-drv.pdb
+          src/**/${{ matrix.configuration }}/dbghelp.dll
+          src/**/${{ matrix.configuration }}/symsrv.dll

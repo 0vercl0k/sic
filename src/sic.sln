@@ -7,7 +7,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "shareme", "shareme\shareme.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sic-drv", "sic-drv\sic-drv.vcxproj", "{A05F90B8-6907-464B-9982-78DF3B3C3539}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sic-user", "sic-user\sic-user.vcxproj", "{1F74AE9C-8FCC-446E-A7D8-5751AAC8959F}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sic", "sic\sic.vcxproj", "{1F74AE9C-8FCC-446E-A7D8-5751AAC8959F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
