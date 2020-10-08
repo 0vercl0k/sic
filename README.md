@@ -7,15 +7,17 @@ This utility enumerates the various shared memory regions mapped in Windows proc
 
 ![SiC](pics/sic.png)
 
+Binaries ready to run are available to download are available in the [release](https://github.com/0vercl0k/sic/releases) section.
+
 Special thanks to [@masthoon](https://github.com/masthoon) for suggesting the idea and [@yrp604](https://github.com/yrp604) for numerous discussions on virtual memory management.
 
 ## Usage
 
 In order for SiC to work you need to place `dbghelp.dll` as well as `symsrv.dll` in the directory of the SiC executable. Sic attempts to copy the two files if they are found in the default Windows SDK's Debuggers install location: `c:\Program Files (x86)\Windows Kits\10\Debuggers\<arch>`.
 
-**Without internet**: Download `%SystemRoot%\system32\ntoskrnl.exe`'s PDB manually (using [symchk](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/using-symchk) or [WinDbg](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/debugger-download-tools) for example) and drop the PDB file in the application directory.
+:100: **Without internet**: Download `%SystemRoot%\system32\ntoskrnl.exe`'s PDB manually (using [symchk](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/using-symchk) or [WinDbg](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/debugger-download-tools) for example) and drop the PDB file in the application directory.
 
-**With internet**: The dbghelp APIs should interface well with your existing [symbol path](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path). If you don't have one already set, SiC defines `_NT_SYMBOL_PATH` to `srv*`.
+:zap: **With internet**: The dbghelp APIs should interface well with your existing [symbol path](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path). If you don't have one already set, SiC defines `_NT_SYMBOL_PATH` to `srv*`.
 
 SiC installs a driver in order to be able to scan processes [Virtual Address Descriptors](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/-vad) which are software constructs defined by the Windows' kernel to describe a virtual memory region. To be able to install and communicate with the driver it requires SiC to be run from an *Adminstrator Prompt*.
 
@@ -40,7 +42,7 @@ The driver has been tested on the following platforms:
 - :white_check_mark: Windows 10 1903 x64
 - :white_check_mark: Windows 10 2004 x64
 
-If you have successfully run it on a different platform, please let me know and I will update the list. If you encounterered any issues running it, please file an issue and I will be happy to help / fix the issue.
+If you have successfully run it on a different platform, please let me know and I will update the list.
 
 ## How?
 
@@ -68,7 +70,7 @@ Build succeeded.
 Time Elapsed 00:00:00.42
 ```
 
-:exclamation: The driver only supports 64-bit kernels.
+:warning: The driver only supports 64-bit kernels.
 
 ## Somewhat unexpected results
 
