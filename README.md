@@ -263,4 +263,4 @@ Again, no clue what this really is :)
 
 # Authors
 
-* Axel Souchet ([@0vercl0k](https://twitter.com/0vercl0k))
+* Axel '[@0vercl0k](https://twitter.com/0vercl0k)' Souchet
