@@ -62,3 +62,59 @@ typedef struct _SIC_PROCESS_TO_DEREF
     LIST_ENTRY List;
     PEPROCESS Process;
 } SIC_PROCESS_TO_DEREF, *PSIC_PROCESS_TO_DEREF;
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicClearAvl(_In_ PRTL_AVL_TABLE);
+
+_Function_class_(DRIVER_UNLOAD) _IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ VOID
+SicDriverUnload(_In_ PDRIVER_OBJECT);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicGetProcessName(_In_ const PEPROCESS, _Out_ PUNICODE_STRING *);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicGetProcessList(_Out_ PSYSTEM_PROCESS_INFORMATION *);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicDumpVad(_In_ const PMMVAD, _Inout_ const PVOID);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicWalkVadTreeInOrder(_In_ const PMMVAD, _In_ const SIC_WALK_VAD_ROUTINE, _Inout_opt_ const PVOID);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ RTL_GENERIC_COMPARE_RESULTS
+SicAvlCompareRoutine(_In_ const PRTL_AVL_TABLE, _In_ const PVOID, _In_ const PVOID);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ PVOID
+SicAvlAllocateRoutine(_In_ const PRTL_AVL_TABLE, _In_ const ULONG);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ VOID
+SicAvlFreeRoutine(_In_ const PRTL_AVL_TABLE, _In_ PVOID);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicSerializeShms(_In_ const PVOID, _In_ const ULONG, _Out_opt_ PULONG_PTR);
+
+_IRQL_requires_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicFindShms(_In_ PDWORD64);
+
+_Function_class_(DRIVER_DISPATCH) _IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicDispatchDeviceControl(_In_ PDEVICE_OBJECT, _Inout_ PIRP);
+
+_IRQL_requires_max_(PASSIVE_LEVEL)
+_IRQL_requires_same_ NTSTATUS
+SicCreateClose(_In_ PDEVICE_OBJECT, _Inout_ PIRP);
+
+_Function_class_(DRIVER_INITIALIZE) _IRQL_requires_same_ _IRQL_requires_(PASSIVE_LEVEL)
+NTSTATUS
+DriverEntry(_In_ PDRIVER_OBJECT, _In_ PUNICODE_STRING);

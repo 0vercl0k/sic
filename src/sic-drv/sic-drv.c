@@ -18,14 +18,6 @@
 #include "..\common\common.h"
 
 //
-// Declare a bunch of functions to satisfy the below pragmas.
-//
-
-DRIVER_INITIALIZE DriverEntry;
-DRIVER_UNLOAD SicDriverUnload;
-DRIVER_DISPATCH_PAGED SicDispatchDeviceControl;
-
-//
 // Our code doesn't need to be allocated in non-paged memory.
 // There is no functions running above APC_LEVEL as a result page faults
 // are allowed.
@@ -37,6 +29,17 @@ DRIVER_DISPATCH_PAGED SicDispatchDeviceControl;
 #    pragma alloc_text(INIT, DriverEntry)
 #    pragma alloc_text(PAGE, SicDriverUnload)
 #    pragma alloc_text(PAGE, SicDispatchDeviceControl)
+#    pragma alloc_text(PAGE, SicClearAvl)
+#    pragma alloc_text(PAGE, SicGetProcessName)
+#    pragma alloc_text(PAGE, SicGetProcessList)
+#    pragma alloc_text(PAGE, SicDumpVad)
+#    pragma alloc_text(PAGE, SicWalkVadTreeInOrder)
+#    pragma alloc_text(PAGE, SicAvlCompareRoutine)
+#    pragma alloc_text(PAGE, SicAvlAllocateRoutine)
+#    pragma alloc_text(PAGE, SicAvlFreeRoutine)
+#    pragma alloc_text(PAGE, SicSerializeShms)
+#    pragma alloc_text(PAGE, SicFindShms)
+#    pragma alloc_text(PAGE, SicCreateClose)
 #endif
 
 //
@@ -45,6 +48,7 @@ DRIVER_DISPATCH_PAGED SicDispatchDeviceControl;
 
 typedef struct _SIC_CONTEXT
 {
+    FAST_MUTEX Mutex;
     SIC_OFFSETS Offsets;
     RTL_AVL_TABLE ShmsTable;
 } SIC_CONTEXT, *PSIC_CONTEXT;
@@ -964,7 +968,7 @@ clean:
 
 _IRQL_requires_(PASSIVE_LEVEL)
 _IRQL_requires_same_ NTSTATUS
-SicFindShms(PDWORD64 OutputSize)
+SicFindShms(_In_ PDWORD64 OutputSize)
 
 /*++
 
@@ -1292,6 +1296,12 @@ Return Value:
 
     PAGED_CODE();
 
+    //
+    // Ensure that only one thread handles a request at a time.
+    //
+
+    ExAcquireFastMutex(&gSicCtx.Mutex);
+
     switch (IoControlCode)
     {
     case IOCTL_SIC_INIT_CONTEXT: {
@@ -1349,6 +1359,12 @@ Return Value:
     }
 
     //
+    // Release the mutex as we are done modifying global state.
+    //
+
+    ExReleaseFastMutex(&gSicCtx.Mutex);
+
+    //
     // We are done with this IRP, so we fill in the IoStatus part.
     //
 
@@ -1365,7 +1381,7 @@ Return Value:
 
 _IRQL_requires_max_(PASSIVE_LEVEL)
 _IRQL_requires_same_ NTSTATUS
-SicCreateClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+SicCreateClose(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 
 /*++
 
@@ -1484,5 +1500,7 @@ Return Value:
     memset(&gSicCtx, 0, sizeof(gSicCtx));
     RtlInitializeGenericTableAvl(
         &gSicCtx.ShmsTable, SicAvlCompareRoutine, SicAvlAllocateRoutine, SicAvlFreeRoutine, NULL);
+
+    ExInitializeFastMutex(&gSicCtx.Mutex);
     return STATUS_SUCCESS;
 }

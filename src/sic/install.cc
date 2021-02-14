@@ -77,13 +77,14 @@ bool StopDriver(const char *ServiceName) {
   BOOL Success =
       ControlService(Service, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&Status);
   while (Success && Status.dwCurrentState != SERVICE_STOPPED) {
-    printf("Waiting for %u..", Status.dwWaitHint);
+    printf("Waiting for %u..\n", Status.dwWaitHint);
     Sleep(Status.dwWaitHint);
     DWORD BytesNeeded;
     Success =
         QueryServiceStatusEx(Service, SC_STATUS_PROCESS_INFO, (LPBYTE)&Status,
                              sizeof(Status), &BytesNeeded);
-    printf("Success: %d, dwCurrentState: %u..", Success, Status.dwCurrentState);
+    printf("Success: %d, dwCurrentState: %u..\n", Success,
+           Status.dwCurrentState);
   }
 
   return Success && Status.dwCurrentState == SERVICE_STOPPED;
