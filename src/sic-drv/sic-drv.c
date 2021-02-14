@@ -1300,7 +1300,7 @@ Return Value:
     // Ensure that only one thread handles a request at a time.
     //
 
-    if (InterlockedCompareExchange(&gSicCtx.Synchronization, 1, 1) == 1)
+    if (InterlockedCompareExchange(&gSicCtx.Synchronization, 1, 0) == 1)
     {
         goto clean;
     }
