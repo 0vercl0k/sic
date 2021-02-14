@@ -48,7 +48,7 @@
 
 typedef struct _SIC_CONTEXT
 {
-    FAST_MUTEX Mutex;
+    LONG Synchronization;
     SIC_OFFSETS Offsets;
     RTL_AVL_TABLE ShmsTable;
 } SIC_CONTEXT, *PSIC_CONTEXT;
@@ -1285,7 +1285,7 @@ Return Value:
 
 {
     UNREFERENCED_PARAMETER(DeviceObject);
-    NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
     ULONG_PTR Information = 0;
     const PIO_STACK_LOCATION IrpStackLocation = IoGetCurrentIrpStackLocation(Irp);
     const ULONG IoControlCode = IrpStackLocation->Parameters.DeviceIoControl.IoControlCode;
@@ -1300,7 +1300,10 @@ Return Value:
     // Ensure that only one thread handles a request at a time.
     //
 
-    ExAcquireFastMutex(&gSicCtx.Mutex);
+    if (InterlockedCompareExchange(&gSicCtx.Synchronization, 1, 0) == 1)
+    {
+        goto clean;
+    }
 
     switch (IoControlCode)
     {
@@ -1359,11 +1362,12 @@ Return Value:
     }
 
     //
-    // Release the mutex as we are done modifying global state.
+    // We are done with the synchronization.
     //
 
-    ExReleaseFastMutex(&gSicCtx.Mutex);
+    gSicCtx.Synchronization = 0;
 
+clean:
     //
     // We are done with this IRP, so we fill in the IoStatus part.
     //
@@ -1500,7 +1504,5 @@ Return Value:
     memset(&gSicCtx, 0, sizeof(gSicCtx));
     RtlInitializeGenericTableAvl(
         &gSicCtx.ShmsTable, SicAvlCompareRoutine, SicAvlAllocateRoutine, SicAvlFreeRoutine, NULL);
-
-    ExInitializeFastMutex(&gSicCtx.Mutex);
     return STATUS_SUCCESS;
 }
